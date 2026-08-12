@@ -14,6 +14,7 @@ import AuditEvents from './pages/AuditEvents'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import KusciaMaster from './pages/KusciaMaster'
+import KusciaLogs from './pages/KusciaLogs'
 import { useAuth } from './auth/AuthContext'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -42,6 +43,7 @@ export default function App() {
       >
         <Route path="/cluster" element={<ClusterStatus />} />
         <Route path="/kuscia-master" element={<KusciaMaster />} />
+        <Route path="/kuscia-logs" element={<KusciaLogs />} />
         <Route path="/connectors" element={<Connectors />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/products" element={<Products />} />

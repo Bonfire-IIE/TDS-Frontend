@@ -1,11 +1,13 @@
 import { api, ApiResp } from './client'
 
 export interface KusciaMasterConfig {
+  id?: string
   host: string
   port: number
   scheme?: string
   endpoint?: string
   updated_at?: string
+  status?: string
 }
 
 export async function getKusciaMasterConfig() {
@@ -15,11 +17,25 @@ export async function getKusciaMasterConfig() {
 }
 
 export async function saveKusciaMasterConfig(config: KusciaMasterConfig) {
-  const { data } = await api.post<ApiResp<KusciaMasterConfig>>('/kuscia-masters', { name: 'Kuscia Master', deployment_ip: config.host, api_port: config.port })
+  const payload = { name: 'Kuscia Master', deployment_ip: config.host, api_port: config.port, scheme: config.scheme || 'http' }
+  const { data } = config.id
+    ? await api.patch<ApiResp<KusciaMasterConfig>>(`/kuscia-masters/${config.id}`, payload)
+    : await api.post<ApiResp<KusciaMasterConfig>>('/kuscia-masters', payload)
   return { ...data.data, host: data.data.deployment_ip, port: data.data.api_port }
 }
 
-export async function testKusciaMasterConfig(config: KusciaMasterConfig) {
-  try { await fetch(`${config.scheme || 'http'}://${config.host}:${config.port}/api/v1/health`); return { ok: true } }
-  catch { return { ok: false, message: '无法连接 Kuscia Master' } }
+export async function uploadKusciaCredentials(id: string, files: { ca: File; cert: File; key: File; token: File }) {
+  const form = new FormData()
+  Object.entries(files).forEach(([name, file]) => form.append(name, file))
+  const { data } = await api.post<ApiResp<any>>(`/kuscia-masters/${id}/credentials`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return data.data
+}
+
+export async function testKusciaMaster(id: string) {
+  const { data } = await api.post<ApiResp<{ ok: boolean; message?: string }>>(`/kuscia-masters/${id}/test`)
+  return data.data
+}
+export async function probeKusciaMaster(id: string) {
+  const { data } = await api.post<ApiResp<{ ok: boolean; message?: string }>>(`/kuscia-masters/${id}/probe`)
+  return data.data
 }

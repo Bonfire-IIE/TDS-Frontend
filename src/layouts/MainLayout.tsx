@@ -7,6 +7,7 @@ import {
   ApiOutlined,
   DatabaseOutlined,
   FileProtectOutlined,
+  FileTextOutlined,
   SnippetsOutlined,
   ShoppingOutlined,
   ProjectOutlined,
@@ -18,6 +19,7 @@ import {
 } from '@ant-design/icons'
 import { useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { getKusciaMasterConfig } from '../api/kuscia'
 
 const { Header, Sider, Content } = Layout
 
@@ -38,7 +40,8 @@ const menuItems: MenuProps['items'] = [
     children: [
       { key: '/cluster', icon: <CloudServerOutlined />, label: '集群状态' },
       { key: '/connectors', icon: <ApiOutlined />, label: '连接器' },
-      { key: '/kuscia-master', icon: <CloudServerOutlined />, label: 'Kuscia Master' },
+      { key: '/kuscia-master', icon: <CloudServerOutlined />, label: '控制节点' },
+      { key: '/kuscia-logs', icon: <FileTextOutlined />, label: 'Kuscia 日志' },
     ],
   },
   {
@@ -83,6 +86,7 @@ const routeMenus: Array<{ path: string; parent?: string; selectedPath?: string }
   { path: '/cluster', parent: 'overview' },
   { path: '/connectors', parent: 'overview' },
   { path: '/kuscia-master', parent: 'overview' },
+  { path: '/kuscia-logs', parent: 'overview' },
   { path: '/catalog', parent: 'data-catalog' },
   { path: '/products', parent: 'data-catalog' },
   { path: '/appimages', parent: 'application-management' },
@@ -112,6 +116,16 @@ export default function MainLayout() {
       setOpenKeys((keys) => (keys.includes(activeParent) ? keys : [...keys, activeParent]))
     }
   }, [activeParent])
+
+  useEffect(() => {
+    if (location.pathname === '/kuscia-master' || location.pathname === '/login' || location.pathname === '/register') return
+    getKusciaMasterConfig()
+      .then((config) => {
+        // 已保存或已上传凭据即可进入平台；连接测试失败不应造成页面重定向循环。
+        if (!config || !['connected', 'reachable', 'credentials_uploaded', 'error'].includes((config as any).status)) navigate('/kuscia-master', { replace: true })
+      })
+      .catch(() => undefined)
+  }, [location.pathname, navigate])
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

@@ -37,7 +37,7 @@ export default function Login() {
       <Card style={{ width: 380, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={3} style={{ marginBottom: 4 }}>
-            🔥 Bonfire-TDS
+            Bonfire-TDS
           </Title>
           <Text type="secondary">可信数据空间服务平台</Text>
         </div>
@@ -54,9 +54,6 @@ export default function Login() {
             </Button>
           </Form.Item>
         </Form>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          测试账号：alice / alice123（普通参与方）、admin / admin123（运营方）
-        </Text>
         <div style={{ textAlign: 'center', marginTop: 12 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             没有账号？<Link to="/register">去注册</Link>
