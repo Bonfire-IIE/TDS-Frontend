@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Layout, Menu, Dropdown, Avatar, Space, Tag } from 'antd'
+import { Layout, Menu, Dropdown, Avatar, Space, Spin, Tag } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   CloudServerOutlined,
@@ -110,6 +110,7 @@ export default function MainLayout() {
   const [openKeys, setOpenKeys] = useState<string[]>(() =>
     activeMenu?.parent ? [activeMenu.parent] : ['overview'],
   )
+  const [checkingMaster, setCheckingMaster] = useState(true)
 
   useEffect(() => {
     if (activeParent) {
@@ -118,8 +119,15 @@ export default function MainLayout() {
   }, [activeParent])
 
   useEffect(() => {
-    if (location.pathname === '/kuscia-master' || location.pathname.startsWith('/setup/') || location.pathname === '/login' || location.pathname === '/register') return
-    if (!user?.roles?.some((role) => role === 'operator' || role === 'supervisor')) return
+    if (location.pathname === '/kuscia-master' || location.pathname.startsWith('/setup/') || location.pathname === '/login' || location.pathname === '/register') {
+      setCheckingMaster(false)
+      return
+    }
+    if (!user?.roles?.some((role) => role === 'operator' || role === 'supervisor')) {
+      setCheckingMaster(false)
+      return
+    }
+    setCheckingMaster(true)
     getKusciaMasterConfig()
       .then((config) => {
         // 仅在完全没有 Master 记录时进入可选引导。已有记录即由中心平台独立管理，
@@ -127,7 +135,12 @@ export default function MainLayout() {
         if (!config) navigate('/setup/kuscia-master', { replace: true })
       })
       .catch(() => undefined)
+      .finally(() => setCheckingMaster(false))
   }, [location.pathname, navigate, user?.roles])
+
+  if (checkingMaster) {
+    return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><Spin size="large" tip="正在检测 Kuscia Master 配置…" /></div>
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
