@@ -118,14 +118,16 @@ export default function MainLayout() {
   }, [activeParent])
 
   useEffect(() => {
-    if (location.pathname === '/kuscia-master' || location.pathname === '/login' || location.pathname === '/register') return
+    if (location.pathname === '/kuscia-master' || location.pathname.startsWith('/setup/') || location.pathname === '/login' || location.pathname === '/register') return
+    if (!user?.roles?.some((role) => role === 'operator' || role === 'supervisor')) return
     getKusciaMasterConfig()
       .then((config) => {
-        // 已保存或已上传凭据即可进入平台；连接测试失败不应造成页面重定向循环。
-        if (!config || !['connected', 'reachable', 'credentials_uploaded', 'error'].includes((config as any).status)) navigate('/kuscia-master', { replace: true })
+        // 仅在完全没有 Master 记录时进入可选引导。已有记录即由中心平台独立管理，
+        // 即使探活失败也不会被引导页劫持或形成重定向循环。
+        if (!config) navigate('/setup/kuscia-master', { replace: true })
       })
       .catch(() => undefined)
-  }, [location.pathname, navigate])
+  }, [location.pathname, navigate, user?.roles])
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

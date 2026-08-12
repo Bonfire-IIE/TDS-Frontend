@@ -15,6 +15,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import KusciaMaster from './pages/KusciaMaster'
 import KusciaLogs from './pages/KusciaLogs'
+import KusciaMasterOnboarding from './pages/KusciaMasterOnboarding'
 import { useAuth } from './auth/AuthContext'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -34,6 +35,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/setup/kuscia-master" element={<RequireAuth><KusciaMasterOnboarding /></RequireAuth>} />
       <Route
         element={
           <RequireAuth>
