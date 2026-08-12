@@ -2,16 +2,16 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, Button, Card, Col, Form, Input, InputNumber, Result, Row, Space, Spin,
-  Steps, Typography, Upload, message,
+  Steps, Tooltip, Typography, Upload, message,
 } from 'antd'
-import type { UploadFile } from 'antd/es/upload/interface'
-import { CopyOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { CopyOutlined, DownloadOutlined, QuestionCircleOutlined, UploadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import {
   getKusciaMasterDeployScript, getKusciaMasterOnboardingState,
   saveKusciaMasterConfig, testKusciaMaster, uploadKusciaCredentials,
   type KusciaMasterDeployInput, type KusciaMasterDeployScript,
 } from '../api/kuscia'
+import ShellCodeViewer from '../components/ShellCodeViewer'
 
 const { Title, Text, Paragraph } = Typography
 const errorMessage = (e: any) => e?.response?.data?.detail ?? e?.message ?? '操作失败'
@@ -110,6 +110,7 @@ export default function KusciaMasterOnboarding() {
     const a = document.createElement('a'); a.href = url; a.download = 'deploy-kuscia-master.sh'; a.click()
     URL.revokeObjectURL(url)
   }
+  const certificateCommand = `MASTER_CONTAINER="$(docker ps --format '{{.Names}}' | grep 'kuscia-master' | head -n1)"\nmkdir -p ./kuscia-master-certs\ndocker cp "$MASTER_CONTAINER":/home/kuscia/var/certs/. ./kuscia-master-certs/\nls -1 ./kuscia-master-certs`
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: '32px 16px' }}>
@@ -138,13 +139,29 @@ export default function KusciaMasterOnboarding() {
             {script && <Space direction="vertical" style={{ width: '100%', marginTop: 24 }}>
               <Alert type="success" showIcon message="在 Kuscia Master 主机执行以下脚本" description={`KusciaAPI 将登记为 ${script.api_endpoint}`} />
               <Space><Button icon={<CopyOutlined />} onClick={copyScript}>复制</Button><Button icon={<DownloadOutlined />} onClick={downloadScript}>下载 .sh</Button></Space>
-              <pre style={{ maxHeight: 420, overflow: 'auto', color: '#eee', background: '#1f1f1f', padding: 16, borderRadius: 8 }}>{script.commands}</pre>
+              <ShellCodeViewer code={script.commands} />
               <Button type="primary" onClick={() => persist.mutate()} loading={persist.isPending}>我已完成部署，继续</Button>
             </Space>}
           </>}
 
           {current === 1 && <>
             <Alert type="info" showIcon style={{ marginBottom: 20 }} message="上传 Master KusciaAPI 凭据" description="选择部署脚本最后导出的 ca.crt、kusciaapi-server.crt、kusciaapi-server.key 和 token。文件保存在后端受限目录，数据库只记录路径引用。" />
+            <Space size={6} style={{ marginBottom: 12 }}>
+              <Text strong>上传凭据文件</Text>
+              <Tooltip
+                placement="right"
+                overlayInnerStyle={{ width: 600, maxWidth: '80vw', background: '#fff', color: '#1f2937', boxShadow: '0 6px 24px rgba(0,0,0,.18)' }}
+                title={<Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <Text strong>如何获取 Kuscia Master 证书</Text>
+                  <Text>在运行 Kuscia Master 的主机执行：</Text>
+                  <pre style={{ margin: 0, padding: 10, whiteSpace: 'pre-wrap', wordBreak: 'break-all', borderRadius: 6, background: '#f5f7fa', color: '#1f2937', fontSize: 12 }}>{certificateCommand}</pre>
+                  <Text type="secondary">从生成的 kuscia-master-certs 目录选择 ca.crt、kusciaapi-server.crt、kusciaapi-server.key 和 token 四个文件。证书只上传至中心后端的受限凭据目录。</Text>
+                </Space>}
+              >
+                <QuestionCircleOutlined aria-label="获取证书指引" style={{ color: '#1677ff', cursor: 'help', fontSize: 16 }} />
+              </Tooltip>
+            </Space>
+            <br />
             <Space wrap>{(['ca', 'cert', 'key', 'token'] as const).map((name) => <Upload key={name} maxCount={1} beforeUpload={(file) => { setFiles((old) => ({ ...old, [name]: file as File })); return false }} onRemove={() => { setFiles((old) => { const next = { ...old }; delete next[name]; return next }) }}><Button icon={<UploadOutlined />}>{name === 'ca' ? '选择 ca.crt' : name === 'cert' ? '选择客户端证书' : name === 'key' ? '选择客户端私钥' : '选择 token'}</Button></Upload>)}</Space>
             <Paragraph type="secondary" style={{ marginTop: 16 }}>上传后向导会立即使用这组凭据查询 kuscia-system，验证通过才会完成接入。</Paragraph>
             <Space><Button onClick={() => setCurrent(0)}>返回部署步骤</Button><Button type="primary" disabled={Object.keys(files).length !== 4} loading={finish.isPending} onClick={() => finish.mutate()}>上传并验证</Button></Space>
