@@ -19,8 +19,11 @@ const errorMessage = (e: any) => e?.response?.data?.detail ?? e?.message ?? '操
 const defaults: KusciaMasterDeployInput = {
   domain_id: 'bonfire-master',
   deployment_ip: '',
-  gateway_port: 18080,
-  api_port: 18081,
+  auth_port: 13081,
+  api_port: 13082,
+  grpc_port: 13083,
+  app_port: 13080,
+  metrics_port: 13084,
   kuscia_image: 'secretflow-registry.cn-hangzhou.cr.aliyuncs.com/secretflow/kuscia:1.2.0b0',
 }
 
@@ -43,9 +46,13 @@ export default function KusciaMasterOnboarding() {
     if (!master) return
     setMasterId(master.id || '')
     form.setFieldsValue({
+      domain_id: master.domain_id,
       deployment_ip: master.deployment_ip || master.host,
+      auth_port: master.auth_port,
       api_port: master.api_port || master.port,
-      gateway_port: Number(master.deploy_endpoint?.match(/:(\d+)$/)?.[1] || 18080),
+      grpc_port: master.grpc_port,
+      app_port: master.app_port,
+      metrics_port: master.metrics_port,
     })
     if (state.data?.completed) setCurrent(2)
     else setCurrent(1)
@@ -62,10 +69,15 @@ export default function KusciaMasterOnboarding() {
       const values = await form.validateFields()
       const saved = await saveKusciaMasterConfig({
         id: masterId || undefined,
+        domain_id: values.domain_id,
         host: values.deployment_ip,
+        auth_port: values.auth_port,
         port: values.api_port,
+        grpc_port: values.grpc_port,
+        app_port: values.app_port,
+        metrics_port: values.metrics_port,
         scheme: 'https',
-        deploy_endpoint: script?.deploy_endpoint || `https://${values.deployment_ip}:${values.gateway_port}`,
+        deploy_endpoint: script?.deploy_endpoint || `https://${values.deployment_ip}:${values.auth_port}`,
       })
       setMasterId(saved.id || '')
       return saved
@@ -130,8 +142,13 @@ export default function KusciaMasterOnboarding() {
                 <Col xs={24} md={12}><Form.Item name="deployment_ip" label="部署主机 IP" rules={[{ required: true }]}><Input placeholder="如 10.2.0.11" /></Form.Item></Col>
               </Row>
               <Row gutter={16}>
-                <Col span={12}><Form.Item name="gateway_port" label="连接器接入端口" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
-                <Col span={12}><Form.Item name="api_port" label="中心平台 API 端口" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
+                <Col xs={24} md={8}><Form.Item name="auth_port" label="认证/网关端口 (-p)" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
+                <Col xs={24} md={8}><Form.Item name="api_port" label="KusciaAPI HTTP (-k)" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
+                <Col xs={24} md={8}><Form.Item name="grpc_port" label="KusciaAPI gRPC (-g)" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
+              </Row>
+              <Row gutter={16}>
+                <Col xs={24} md={12}><Form.Item name="app_port" label="应用端口 (-q)" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
+                <Col xs={24} md={12}><Form.Item name="metrics_port" label="Metrics 端口 (-x)" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></Col>
               </Row>
               <Form.Item name="kuscia_image" label="Kuscia 镜像" rules={[{ required: true }]}><Input /></Form.Item>
               <Button type="primary" htmlType="submit" loading={generate.isPending}>生成部署脚本</Button>

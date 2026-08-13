@@ -1,34 +1,100 @@
-import { useEffect, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Alert, Button, Card, Form, Input, InputNumber, Space, Typography, message, Upload, Select } from 'antd'
-import type { UploadFile } from 'antd/es/upload/interface'
-import { CheckCircleOutlined, ApiOutlined } from '@ant-design/icons'
-import { getKusciaMasterConfig, saveKusciaMasterConfig, uploadKusciaCredentials, testKusciaMaster, probeKusciaMaster, KusciaMasterConfig } from '../api/kuscia'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Alert, Button, Card, Descriptions, Empty, Popconfirm, Space, Tag, Typography, message } from 'antd'
+import { DeleteOutlined, DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { deleteKusciaMaster, getKusciaMasterConfig } from '../api/kuscia'
+
+const statusLabels: Record<string, { label: string; color: string }> = {
+  unconfigured: { label: '未配置', color: 'default' },
+  reachable: { label: '地址可达', color: 'processing' },
+  credentials_uploaded: { label: '凭据已上传', color: 'warning' },
+  connected: { label: '已连接', color: 'success' },
+  error: { label: '异常', color: 'error' },
+}
 
 export default function KusciaMaster() {
-  const [form] = Form.useForm<KusciaMasterConfig>()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const config = useQuery({ queryKey: ['kuscia-master'], queryFn: getKusciaMasterConfig })
-  const save = useMutation({ mutationFn: saveKusciaMasterConfig, onSuccess: async (v) => { form.setFieldsValue(v); const p = await probeKusciaMaster(v.id!); p.ok ? message.success('控制节点地址已保存，探活成功') : message.warning(`地址已保存，但探活失败：${p.message}`); config.refetch() }, onError: (e: any) => message.error(e.response?.data?.detail || e.message || '控制节点配置保存失败') })
-  const upload = useMutation({ mutationFn: async (files: Record<string, File>) => { const id = config.data?.id; if (!id) throw new Error('请先保存控制节点地址'); return uploadKusciaCredentials(id, { ca: files.ca, cert: files.cert, key: files.key, token: files.token }) }, onSuccess: () => message.success('凭据已上传'), onError: (e: any) => message.error(e.response?.data?.detail || e.message) })
-  const [files, setFiles] = useState<Record<string, File>>({})
-  useEffect(() => { if (config.data) form.setFieldsValue(config.data) }, [config.data, form])
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (!config.data?.id) throw new Error('当前没有可清除的管理节点')
+      await deleteKusciaMaster(config.data.id)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['kuscia-master'] })
+      await queryClient.invalidateQueries({ queryKey: ['kuscia-master-onboarding'] })
+      message.success('当前管理节点配置已清除')
+      navigate('/setup/kuscia-master', { replace: true })
+    },
+    onError: (e: any) => message.error(e.response?.data?.detail || e.message || '清除失败'),
+  })
 
-  return <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 820 }}>
-    <div><Typography.Title level={3} style={{ marginBottom: 4 }}>控制节点</Typography.Title><Typography.Text type="secondary">配置中心平台访问的 Kuscia 控制节点地址与凭据。</Typography.Text></div>
-    {config.isError && <Alert type="warning" showIcon message="尚未读取到 Master 配置" description="请填写并保存 Kuscia Master 的部署 IP 和端口。" />}
-    <Card title="导入 Kuscia Master" extra={<ApiOutlined />} loading={config.isLoading}>
-      <Form form={form} layout="vertical" initialValues={{ scheme: 'http', port: 18080 }} onFinish={(v) => save.mutate({ ...v, id: config.data?.id })}>
-        <Space align="start" style={{ width: '100%' }}>
-          <Form.Item name="scheme" label="协议" rules={[{ required: true }]}><Select style={{ width: 120 }} options={[{ value: 'http', label: 'HTTP' }, { value: 'https', label: 'HTTPS' }]} /></Form.Item>
-          <Form.Item name="host" label="部署 IP / 主机名" rules={[{ required: true, message: '请输入 Master 地址' }]} style={{ flex: 1 }}><Input placeholder="如 10.0.0.10" /></Form.Item>
-          <Form.Item name="port" label="端口" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: 120 }} /></Form.Item>
-        </Space>
-        <Form.Item noStyle shouldUpdate>{() => <Typography.Text type="secondary">当前地址：{form.getFieldValue('scheme') || 'http'}://{form.getFieldValue('host') || '<host>'}:{form.getFieldValue('port') || 18080}</Typography.Text>}</Form.Item>
-        <div style={{ marginTop: 24 }}><Space><Button type="primary" htmlType="submit" loading={save.isPending} icon={<CheckCircleOutlined />}>保存配置</Button></Space></div>
-      </Form>
-      <Alert type="info" showIcon style={{ marginTop: 20 }} message="如何获取凭据" description={<div>在运行 Kuscia Master 的主机执行（与连接器门户一致）：<pre style={{ margin: '8px 0' }}>mkdir -p ./kuscia-master-certs && docker cp "$(docker ps -qf name=kuscia-master | head -n1)":/home/kuscia/var/certs/. ./kuscia-master-certs/ && ls -1 ./kuscia-master-certs</pre>将生成目录中的 ca.crt、kusciaapi-server.crt、kusciaapi-server.key 和 token 四个文件分别上传。凭据只保存于后端受限目录，不进入数据库。</div>} />
-      <Space wrap style={{ marginTop: 16 }}>{(['ca', 'cert', 'key', 'token'] as const).map((name) => <Upload key={name} maxCount={1} beforeUpload={(file) => { setFiles((x) => ({ ...x, [name]: file as File })); return false }} onRemove={() => { setFiles((x) => { const y = { ...x }; delete y[name]; return y }) }}><Button>{name === 'ca' ? '选择 ca.crt' : name === 'cert' ? '选择客户端证书' : name === 'key' ? '选择客户端私钥' : '选择 token'}</Button></Upload>)}</Space>
-      <Space style={{ marginTop: 16 }}><Button type="primary" disabled={Object.keys(files).length !== 4 || Object.values(files).some((f) => !(f instanceof File)) || !config.data?.id} loading={upload.isPending} onClick={() => upload.mutate(files)}>上传凭据</Button><Button disabled={!config.data?.id} onClick={() => config.data?.id && testKusciaMaster(config.data.id).then((v) => v.ok ? message.success('Kuscia Master 连接成功') : message.error(v.message || '连接失败')).catch((e) => message.error(e.response?.data?.detail || '连接测试失败'))}>测试已上传凭据</Button></Space>
-    </Card>
-  </Space>
+  const master = config.data
+  const status = statusLabels[master?.status || 'unconfigured'] || { label: master?.status || '未知', color: 'default' }
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 920 }}>
+      <div>
+        <Typography.Title level={3} style={{ marginBottom: 4 }}>控制节点</Typography.Title>
+        <Typography.Text type="secondary">
+          查看中心平台当前使用的 Kuscia Master。部署、导入与切换统一在初始化引导中完成。
+        </Typography.Text>
+      </div>
+
+      <Space wrap>
+        <Button type="primary" icon={<DeploymentUnitOutlined />} onClick={() => navigate('/setup/kuscia-master')}>
+          返回管理节点引导
+        </Button>
+        <Button icon={<ReloadOutlined />} loading={config.isFetching} onClick={() => config.refetch()}>
+          刷新状态
+        </Button>
+      </Space>
+
+      {config.isError && <Alert type="error" showIcon message="读取管理节点失败" description={(config.error as any)?.response?.data?.detail || (config.error as Error)?.message} />}
+
+      <Card title="当前管理节点" loading={config.isLoading}>
+        {!master ? (
+          <Empty description="尚未配置 Kuscia Master">
+            <Button type="primary" onClick={() => navigate('/setup/kuscia-master')}>进入引导</Button>
+          </Empty>
+        ) : (
+          <>
+            <Descriptions bordered column={{ xs: 1, sm: 2 }}>
+              <Descriptions.Item label="节点名称">{master.domain_id || '—'}</Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={status.color}>{status.label}</Tag></Descriptions.Item>
+              <Descriptions.Item label="部署主机">{master.deployment_ip || master.host}</Descriptions.Item>
+              <Descriptions.Item label="协议">{master.scheme || 'https'}</Descriptions.Item>
+              <Descriptions.Item label="认证/网关端口 (-p)">{master.auth_port ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="KusciaAPI HTTP (-k)">{master.api_port ?? master.port}</Descriptions.Item>
+              <Descriptions.Item label="KusciaAPI gRPC (-g)">{master.grpc_port ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="应用端口 (-q)">{master.app_port ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Metrics 端口 (-x)">{master.metrics_port ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="连接器接入地址">{master.deploy_endpoint || '—'}</Descriptions.Item>
+            </Descriptions>
+            {master.last_error && <Alert type="error" showIcon style={{ marginTop: 16 }} message="最近一次连接失败" description={master.last_error} />}
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginTop: 20 }}
+              message="清除只影响中心平台配置"
+              description="不会停止或删除 Kuscia Master 容器。清除后平台将删除该节点数据库记录和已上传的凭据副本，并返回初始化引导。"
+            />
+            <div style={{ marginTop: 16 }}>
+              <Popconfirm
+                title="清除当前管理节点？"
+                description="此操作会删除平台配置及上传的凭据副本，但不会操作 Kuscia 容器。"
+                okText="确认清除"
+                cancelText="取消"
+                okButtonProps={{ danger: true, loading: remove.isPending }}
+                onConfirm={() => remove.mutate()}
+              >
+                <Button danger icon={<DeleteOutlined />} loading={remove.isPending}>清除当前管理节点</Button>
+              </Popconfirm>
+            </div>
+          </>
+        )}
+      </Card>
+    </Space>
+  )
 }

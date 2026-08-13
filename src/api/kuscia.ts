@@ -2,6 +2,7 @@ import { api, ApiResp } from './client'
 
 export interface KusciaMasterConfig {
   id?: string
+  domain_id?: string
   host: string
   port: number
   scheme?: string
@@ -9,7 +10,11 @@ export interface KusciaMasterConfig {
   updated_at?: string
   status?: string
   deployment_ip?: string
+  auth_port?: number
   api_port?: number
+  grpc_port?: number
+  app_port?: number
+  metrics_port?: number
   deploy_endpoint?: string
   credential_ref?: string
   last_error?: string
@@ -24,8 +29,11 @@ export interface KusciaMasterOnboardingState {
 export interface KusciaMasterDeployInput {
   domain_id: string
   deployment_ip: string
+  auth_port: number
   api_port: number
-  gateway_port: number
+  grpc_port: number
+  app_port: number
+  metrics_port: number
   kuscia_image?: string
 }
 
@@ -43,8 +51,12 @@ export async function getKusciaMasterConfig() {
 }
 
 export async function saveKusciaMasterConfig(config: KusciaMasterConfig) {
+  if (!config.domain_id) throw new Error('缺少 Kuscia Master Domain ID')
   const payload = {
-    name: 'Kuscia Master', deployment_ip: config.host, api_port: config.port,
+    name: 'Kuscia Master', domain_id: config.domain_id,
+    deployment_ip: config.host, auth_port: config.auth_port,
+    api_port: config.port, grpc_port: config.grpc_port,
+    app_port: config.app_port, metrics_port: config.metrics_port,
     scheme: config.scheme || 'https', deploy_endpoint: config.deploy_endpoint,
   }
   const { data } = config.id
@@ -67,6 +79,10 @@ export async function testKusciaMaster(id: string) {
 export async function probeKusciaMaster(id: string) {
   const { data } = await api.post<ApiResp<{ ok: boolean; message?: string }>>(`/kuscia-masters/${id}/probe`)
   return data.data
+}
+
+export async function deleteKusciaMaster(id: string) {
+  await api.delete(`/kuscia-masters/${id}`)
 }
 
 export async function getKusciaMasterOnboardingState() {
