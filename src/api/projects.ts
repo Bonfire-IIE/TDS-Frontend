@@ -1,4 +1,5 @@
 import { api, ApiResp } from './client'
+import { newIdempotencyKey } from '../utils/idempotency'
 
 export type ProjectStatus = 'draft' | 'pending_approval' | 'approved' | 'running' | 'completed' | 'failed'
 export type RunStatus = 'pending' | 'running' | 'succeeded' | 'failed'
@@ -131,7 +132,8 @@ export async function approveWorkflow(projectId: string, decision: 'approved' | 
 }
 
 export async function executeProject(id: string) {
-  const { data } = await api.post<ApiResp<ProjectRun>>(`/projects/${id}/runs`)
+  const idempotencyKey = newIdempotencyKey()
+  const { data } = await api.post<ApiResp<ProjectRun>>(`/projects/${id}/runs`, { idempotency_key: idempotencyKey })
   return data.data
 }
 

@@ -9,6 +9,7 @@ import Contracts from './pages/Contracts'
 import ContractTemplates from './pages/ContractTemplates'
 import AppImages from './pages/AppImages'
 import Projects from './pages/Projects'
+import ProjectTemplates from './pages/ProjectTemplates'
 import UsageRecords from './pages/UsageRecords'
 import AuditEvents from './pages/AuditEvents'
 import Login from './pages/Login'
@@ -30,6 +31,13 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children
 }
 
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  const { user, loading } = useAuth()
+  if (loading) return <Spin size="large" />
+  const isAdmin = user?.roles?.some((role) => role === 'operator' || role === 'supervisor')
+  return isAdmin ? children : <Navigate to="/connectors" replace />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -43,21 +51,22 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route path="/cluster" element={<ClusterStatus />} />
-        <Route path="/kuscia-master" element={<KusciaMaster />} />
-        <Route path="/kuscia-logs" element={<KusciaLogs />} />
+        <Route path="/cluster" element={<RequireAdmin><ClusterStatus /></RequireAdmin>} />
+        <Route path="/kuscia-master" element={<RequireAdmin><KusciaMaster /></RequireAdmin>} />
+        <Route path="/kuscia-logs" element={<RequireAdmin><KusciaLogs /></RequireAdmin>} />
         <Route path="/connectors" element={<Connectors />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/products" element={<Products />} />
         <Route path="/contracts" element={<Contracts />} />
         <Route path="/contract-templates" element={<ContractTemplates />} />
         <Route path="/projects" element={<Projects />} />
+        <Route path="/project-templates" element={<ProjectTemplates />} />
         <Route path="/projects/:projectId" element={<Projects />} />
         <Route path="/jobs" element={<Navigate to="/projects" replace />} />
         <Route path="/appimages" element={<AppImages />} />
         <Route path="/usage" element={<UsageRecords />} />
         <Route path="/audit" element={<AuditEvents />} />
-        <Route path="*" element={<Navigate to="/cluster" replace />} />
+        <Route path="*" element={<Navigate to="/connectors" replace />} />
       </Route>
     </Routes>
   )

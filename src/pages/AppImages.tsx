@@ -20,22 +20,22 @@ import type { IoSchema, ParameterSchemaValue, PartySchema } from '../components/
 const { Text } = Typography
 
 const CAP_TAG: Record<string, { color: string; text: string }> = {
-  mpc: { color: 'geekblue', text: '安全多方计算 (MPC)' },
-  stats: { color: 'cyan', text: '联合统计' },
-  train: { color: 'purple', text: '联合训练' },
+  mpc: { color: 'blue', text: '安全多方计算 (MPC)' },
+  stats: { color: 'blue', text: '联合统计' },
+  train: { color: 'blue', text: '联合训练' },
   custom: { color: 'default', text: '自定义' },
 }
 const SCOPE_TAG: Record<string, { color: string; text: string }> = {
-  builtin: { color: 'gold', text: '内置' },
+  builtin: { color: 'default', text: '内置' },
   custom: { color: 'blue', text: '自定义' },
 }
 const STATUS_TAG: Record<string, { color: string; text: string }> = {
-  registered: { color: 'green', text: '已注册' },
+  registered: { color: 'blue', text: '已注册' },
   delisted: { color: 'default', text: '已下架' },
 }
 const REGISTRY_SOURCE = {
-  platform: { color: 'green', text: '平台 Harbor' },
-  third_party: { color: 'purple', text: '第三方仓库' },
+  platform: { color: 'blue', text: '平台 Harbor' },
+  third_party: { color: 'default', text: '第三方仓库' },
 }
 
 const CAP_OPTIONS = [
@@ -59,16 +59,19 @@ const UC_CAP_LABELS: Record<string, string> = Object.fromEntries(
 const DEFAULT_DEPLOY_TEMPLATES = [{ name: 'app', replicas: 1, restart_policy: 'Never', containers: [{ name: 'app', command: ['sh', '-c', 'sleep 1'], working_dir: '/' }] }]
 
 const CAP_BACKGROUND: Record<string, { background: string; accent: string }> = {
-  mpc: { background: 'linear-gradient(145deg, #f0f5ff 0%, #d6e4ff 100%)', accent: 'rgba(47,84,235,.25)' },
-  stats: { background: 'linear-gradient(145deg, #e6fffb 0%, #cffafe 100%)', accent: 'rgba(8,151,156,.23)' },
-  train: { background: 'linear-gradient(145deg, #f9f0ff 0%, #efdbff 100%)', accent: 'rgba(114,46,209,.22)' },
-  custom: { background: 'linear-gradient(145deg, #fafafa 0%, #e5e7eb 100%)', accent: 'rgba(89,89,89,.18)' },
+  // 头图是能力识别元素，不承载状态语义，允许使用克制的分类色。
+  mpc: { background: 'linear-gradient(145deg, #eef2ff 0%, #c7d2fe 100%)', accent: 'rgba(79,70,229,.28)' },
+  stats: { background: 'linear-gradient(145deg, #ecfeff 0%, #a5f3fc 100%)', accent: 'rgba(8,145,178,.25)' },
+  train: { background: 'linear-gradient(145deg, #faf5ff 0%, #e9d5ff 100%)', accent: 'rgba(147,51,234,.23)' },
+  custom: { background: 'linear-gradient(145deg, #f8fafc 0%, #dbe4ee 100%)', accent: 'rgba(71,85,105,.20)' },
 }
 
 // 格式化 JSON 展示（失败原样返回）
 export default function AppImages() {
   const { user } = useAuth()
   const isOperator = user?.roles?.includes('operator')
+  const isSupervisor = user?.roles?.includes('supervisor')
+  const isAdmin = isOperator || isSupervisor
   const qc = useQueryClient()
 
   const list = useQuery({ queryKey: ['appimages'], queryFn: listAppImages })
@@ -107,15 +110,27 @@ export default function AppImages() {
     onError: onErr,
   })
 
-  // 仅自定义且（运营方或本人登记）可下架；内置不可下架
+  // 仅自定义且（管理员或本人登记）可下架；内置能力受保护。
   const canDelist = (a: AppImage) =>
-    a.scope === 'custom' && a.status === 'registered' && (isOperator || a.created_by === user?.username)
+    a.scope === 'custom' && a.status === 'registered' && (isAdmin || a.created_by === user?.username)
 
   const onFinish = async (v: any) => {
     const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? {}, null, 2)
     let deploy_templates: any[]
     try {
-      deploy_templates = (await parseAppImageConfig(asText(v.deploy_templates), 'deploy_templates')).deploy_templates
+      // DeployTemplateEditor stores an already parsed array in the form.  Do not
+      // send that value through the text parser again (older versions could lose
+      // the array while the editor was being switched between tabs and produce
+      // the misleading "必须是非空数组" error).  Keep parsing support for
+      // hand-entered YAML/JSON text values.
+      if (Array.isArray(v.deploy_templates)) {
+        deploy_templates = v.deploy_templates
+      } else {
+        deploy_templates = (await parseAppImageConfig(asText(v.deploy_templates), 'deploy_templates')).deploy_templates
+      }
+      if (!Array.isArray(deploy_templates) || deploy_templates.length === 0) {
+        throw new Error('部署模板必须是非空数组')
+      }
     } catch (e: any) {
       message.error(e.response?.data?.detail ?? e.message ?? '部署模板解析失败')
       return
@@ -216,10 +231,14 @@ export default function AppImages() {
   const validatePlatformSyntax = async () => {
     try {
       const values = form.getFieldsValue(['deploy_templates', 'config_templates'])
-      const deploy = await parseAppImageConfig(values.deploy_templates ?? '', 'deploy_templates')
-      const config = values.config_templates?.trim()
-        ? await parseAppImageConfig(values.config_templates, 'config_templates')
-        : {}
+      const deploy = Array.isArray(values.deploy_templates)
+        ? { deploy_templates: values.deploy_templates }
+        : await parseAppImageConfig(values.deploy_templates ?? '', 'deploy_templates')
+      const config = values.config_templates && typeof values.config_templates === 'object'
+        ? { config_templates: values.config_templates }
+        : values.config_templates?.trim()
+          ? await parseAppImageConfig(values.config_templates, 'config_templates')
+          : {}
       message.success('平台语法检查通过')
     } catch (error: any) {
       message.error(error.response?.data?.detail ?? error.message ?? '平台语法检查失败')
@@ -300,7 +319,6 @@ export default function AppImages() {
         <Form form={form} layout="vertical" onFinish={onFinish}
           initialValues={{ capability: 'mpc', operations: ['process'], registry_source: 'platform', deploy_templates: DEFAULT_DEPLOY_TEMPLATES }}>
           <div style={{ display: createStep === 0 ? 'block' : 'none' }}>
-          <Alert type="info" showIcon message="填写应用的展示信息和能力声明" style={{ marginBottom: 16 }} />
           <Form.Item name="display_name" label="应用名称" rules={[{ required: true }]}><Input placeholder="应用对外展示名称" /></Form.Item>
           <Form.Item name="name" label="Kuscia AppImage 标识（选填）" extra="需与已有 KusciaJob 的 appImage 一致；留空时由平台生成"><Input placeholder="如：risk-analysis-image" /></Form.Item>
           <Form.Item name="capability" label="应用能力" rules={[{ required: true }]}><Select options={CAP_OPTIONS} /></Form.Item>
@@ -321,7 +339,7 @@ export default function AppImages() {
               <Form.Item name="image_tag" label="镜像标签" rules={[{ required: true }]}><Input placeholder="如：latest" /></Form.Item>
             </> },
             { key: 'deploy', label: '部署模板', children: <Form.Item name="deploy_templates" rules={[{ required: true, message: '请配置部署模板' }]}><DeployTemplateEditor onChange={(value) => form.setFieldValue('deploy_templates', value)} /></Form.Item> },
-            { key: 'config', label: '配置模板', children: <Form.Item name="config_templates" extra="配置文件名和值将原样保留"><JsonEditor rows={12} onChange={(text) => form.setFieldValue('config_templates', text)} placeholder={'{\n  "task-config.conf": "{{.TASK_ID}}"\n}'} /></Form.Item> },
+            { key: 'config', label: '配置模板', children: <Form.Item name="config_templates"><JsonEditor rows={12} onChange={(text) => form.setFieldValue('config_templates', text)} placeholder={'{\n  "task-config.conf": "{{.TASK_ID}}"\n}'} /></Form.Item> },
             { key: 'task', label: '任务配置', children: <>
               <Alert type="info" showIcon style={{ marginBottom: 12 }} message="taskInputConfig 模板" description="平台会在 Workflow 运行时注入 DomainData 和参数。" />
               <Form.Item name="task_input_template" label="模板（JSON）" extra="inputs.<端口>.*、outputs.<端口>.*、parameters.<参数名>">
@@ -341,7 +359,6 @@ export default function AppImages() {
           ]} onChange={(key) => { if (key === 'advanced') setAdvancedSchemaText(JSON.stringify({ party_schema: partySchema, io_schema: ioSchema, parameter_schema: parameterSchemas.parameterSchema, ui_schema: parameterSchemas.uiSchema }, null, 2)) }} />
           </div>
           <div style={{ display: createStep === 3 ? 'block' : 'none' }}>
-            <Alert type="success" showIcon message="AppImage 生成结果" description="以下内容将作为应用登记请求提交；平台约束来自前面声明的角色、I/O Schema 和参数 Schema。" />
             <Divider orientation="left">生成的 AppImage YAML 结构</Divider>
             <JsonViewer value={{ apiVersion: 'kuscia.secretflow/v1alpha1', kind: 'AppImage', metadata: { name: form.getFieldValue('name') || '(平台自动生成)' }, spec: { image: { name: form.getFieldValue('image_name'), tag: form.getFieldValue('image_tag') }, deployTemplates: form.getFieldValue('deploy_templates'), configTemplates: form.getFieldValue('config_templates') || {} } }} collapsed={1} />
             <Divider orientation="left">平台约束</Divider>

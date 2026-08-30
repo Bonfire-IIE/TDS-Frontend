@@ -19,12 +19,12 @@ import PolicyEditor, { PolicyView, emptyPolicy } from '../components/PolicyEdito
 const { Text, Paragraph } = Typography
 
 const MODE_TAG: Record<string, { color: string; text: string }> = {
-  accept: { color: 'cyan', text: '提案-接受' },
-  negotiate: { color: 'geekblue', text: '提案-修订' },
+  accept: { color: 'blue', text: '提案-接受' },
+  negotiate: { color: 'default', text: '提案-修订' },
 }
 const STATUS_TAG: Record<string, { color: string; text: string }> = {
   draft: { color: 'default', text: '草稿' },
-  listed: { color: 'green', text: '已上架' },
+  listed: { color: 'blue', text: '已上架' },
   delisted: { color: 'default', text: '已下架' },
 }
 
@@ -127,10 +127,10 @@ export default function Products() {
         {filteredProducts.map((p) => (
           <Card key={p.id} hoverable styles={{ body: { padding: 0 } }} style={{ overflow: 'hidden' }}>
             <div style={{ display: 'flex', minHeight: 138 }}>
-              <div style={{ width: 78, flex: '0 0 78px', position: 'relative', overflow: 'hidden', background: p.transaction_mode === 'accept' ? 'linear-gradient(145deg, #e6fffb 0%, #bae7ff 100%)' : 'linear-gradient(145deg, #f0f5ff 0%, #efdbff 100%)' }}>
+              <div style={{ width: 78, flex: '0 0 78px', position: 'relative', overflow: 'hidden', background: p.transaction_mode === 'accept' ? 'linear-gradient(145deg, #eff6ff 0%, #dbeafe 100%)' : 'linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%)' }}>
                 <div style={{ position: 'absolute', width: 82, height: 82, borderRadius: '50%', background: 'rgba(255,255,255,.55)', left: -34, top: -20 }} />
                 <div style={{ position: 'absolute', width: 52, height: 52, borderRadius: 14, border: '12px solid rgba(255,255,255,.48)', transform: 'rotate(32deg)', right: -25, bottom: -15 }} />
-                <div style={{ position: 'absolute', width: 5, height: 54, borderRadius: 4, background: p.transaction_mode === 'accept' ? 'rgba(19,194,194,.34)' : 'rgba(114,46,209,.27)', left: 22, top: 54 }} />
+                <div style={{ position: 'absolute', width: 5, height: 54, borderRadius: 4, background: 'rgba(37,99,235,.24)', left: 22, top: 54 }} />
               </div>
               <div style={{ flex: 1, minWidth: 0, padding: 18 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.3fr) minmax(220px, 1fr) minmax(220px, 1fr) auto', gap: 24, alignItems: 'center', minHeight: 102 }}>
@@ -139,8 +139,8 @@ export default function Products() {
               <div><Space direction="vertical" size={6}><span><Text type="secondary">归属域：</Text><Text code>{p.kuscia_domain_id}</Text></span><span><Text type="secondary">交易模式：</Text><Tag color={MODE_TAG[p.transaction_mode]?.color}>{MODE_TAG[p.transaction_mode]?.text}</Tag></span><span><Text type="secondary">关联资源：</Text>{p.resource_name || p.resource_id}</span></Space></div>
               <Space wrap style={{ maxWidth: 260, justifyContent: 'flex-end' }}>
                 <Button size="small" onClick={() => setDetailTarget(p)}>详情</Button>
-                {p.status === 'listed' && p.transaction_mode === 'accept' && <Button type="primary" size="small" onClick={() => { setUseTarget(p); useForm.resetFields() }}>使用</Button>}
-                {p.status === 'listed' && p.transaction_mode === 'negotiate' && <Button type="primary" size="small" onClick={() => { setApplyTarget(p); applyForm.setFieldsValue({ policies: p.baseline_policies ?? [] }) }}>申请</Button>}
+                {p.status === 'listed' && p.transaction_mode === 'accept' && <Button type="primary" size="small" disabled={isAdmin} title={isAdmin ? '管理员不可使用数据产品' : undefined} onClick={() => { setUseTarget(p); useForm.resetFields() }}>使用</Button>}
+                {p.status === 'listed' && p.transaction_mode === 'negotiate' && <Button type="primary" size="small" disabled={isAdmin} title={isAdmin ? '管理员不可申请使用数据产品' : undefined} onClick={() => { setApplyTarget(p); applyForm.setFieldsValue({ policies: p.baseline_policies ?? [] }) }}>申请</Button>}
                 {p.status === 'listed' && (isOperator || p.created_by === user?.username) && <Popconfirm title="下架该产品？" onConfirm={() => delistMut.mutate(p.id)}><Button size="small" danger>下架</Button></Popconfirm>}
                 {(isAdmin || p.created_by === user?.username) && <Popconfirm title="删除该产品？" onConfirm={() => deleteMut.mutate(p.id)}><Button size="small" danger>删除</Button></Popconfirm>}
               </Space>

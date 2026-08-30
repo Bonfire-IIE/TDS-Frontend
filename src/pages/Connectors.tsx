@@ -13,11 +13,11 @@ import { useAuth } from '../auth/AuthContext'
 const { Paragraph, Text } = Typography
 
 const STATUS: Record<string, { color: string; text: string }> = {
-  applying: { color: 'orange', text: '待审批' },
+  applying: { color: 'gold', text: '待审批' },
   approved: { color: 'blue', text: '已批准' },
   rejected: { color: 'red', text: '已驳回' },
-  online: { color: 'green', text: '在线' },
-  offline: { color: 'default', text: '待部署/离线' },
+  online: { color: 'blue', text: '在线' },
+  offline: { color: 'gold', text: '待部署/离线' },
 }
 
 const PORT_FIELDS = ['auth_port', 'lite_api_port', 'grpc_port', 'app_port', 'data_port']

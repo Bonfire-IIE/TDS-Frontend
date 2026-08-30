@@ -8,6 +8,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { listContracts } from '../api/contracts'
 import { listAppImages } from '../api/appimages'
+import { createProjectTemplate, listProjectTemplates } from '../api/projectTemplates'
+import { useAuth } from '../auth/AuthContext'
 import WorkflowCanvas, { WorkflowDsl } from '../components/WorkflowCanvas'
 import JsonViewer from '../components/JsonViewer'
 import {
@@ -17,8 +19,8 @@ import {
 
 const { Text } = Typography
 const STATUS: Record<string, [string, string]> = {
-  draft: ['default', '草稿'], pending_approval: ['orange', '待审核'], approved: ['green', '已审核'],
-  running: ['blue', '执行中'], completed: ['green', '已完成'], succeeded: ['green', '已成功'],
+  draft: ['default', '草稿'], pending_approval: ['gold', '待审核'], approved: ['blue', '已审核'],
+  running: ['blue', '执行中'], completed: ['blue', '已完成'], succeeded: ['blue', '已成功'],
   failed: ['red', '失败'], rejected: ['red', '已拒绝'], pending: ['default', '等待中'],
 }
 
@@ -48,6 +50,8 @@ function lineDiff(oldStr: string, newStr: string): DiffLine[] {
 }
 
 export default function Projects() {
+  const { user } = useAuth()
+  const isAdmin = Boolean(user?.roles?.some((role) => role === 'operator' || role === 'supervisor'))
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { projectId } = useParams()
@@ -61,15 +65,19 @@ export default function Projects() {
   const [createForm] = Form.useForm()
   const [workflowForm] = Form.useForm()
   const [approvalForm] = Form.useForm()
+  const [templateForm] = Form.useForm()
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
+  const [importTemplateId, setImportTemplateId] = useState<string>()
 
   const projects = useQuery({ queryKey: ['projects'], queryFn: listProjects, refetchInterval: 5000 })
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: listContracts })
   const appimages = useQuery({ queryKey: ['appimages'], queryFn: listAppImages })
+  const projectTemplates = useQuery({ queryKey: ['project-templates'], queryFn: listProjectTemplates })
   const detail = useQuery({
-    queryKey: ['project', detailId], queryFn: () => getProject(detailId!), enabled: !!detailId,
+    queryKey: ['project', detailId], queryFn: () => getProject(detailId!), enabled: !!detailId && !isAdmin,
     refetchInterval: (q) => q.state.data?.runs.some((r) => r.status === 'running') ? 5000 : false,
   })
-  const domainData = useQuery({ queryKey: ['project-domain-data', detailId], queryFn: () => getAvailableDomainData(detailId!), enabled: !!detailId })
+  const domainData = useQuery({ queryKey: ['project-domain-data', detailId], queryFn: () => getAvailableDomainData(detailId!), enabled: !!detailId && !isAdmin })
   const filedContracts = useMemo(() => (contracts.data ?? []).filter((c) => c.status === 'filed'), [contracts.data])
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['projects'] })
@@ -117,6 +125,11 @@ export default function Projects() {
     onSuccess: () => { message.success('节点互联已建立'); invalidate() },
     onError: (e) => message.error(errorText(e)),
   })
+  const saveTemplateMut = useMutation({
+    mutationFn: (values: { name: string; description?: string }) => createProjectTemplate({ ...values, workflow: workflowDraft as unknown as Record<string, unknown> }),
+    onSuccess: () => { message.success('当前镜像工作流已保存为项目模板'); setSaveTemplateOpen(false); templateForm.resetFields(); qc.invalidateQueries({ queryKey: ['project-templates'] }) },
+    onError: (e) => message.error(errorText(e)),
+  })
 
   const submitWorkflowJson = (values: { workflow: string }) => {
     try {
@@ -142,6 +155,33 @@ export default function Projects() {
     workflowForm.setFieldValue('workflow', JSON.stringify(draft, null, 2))
     setWorkflowMode('canvas')
     setCanvasNonce((n) => n + 1)
+  }
+  const importProjectTemplate = () => {
+    const template = (projectTemplates.data ?? []).find((item) => item.id === importTemplateId)
+    if (!template) { message.warning('请先选择项目模板'); return }
+    const consumerDomain = domains.find((domain) => domain.connector_id === project?.initiator_connector_id)?.domain_id
+    const providerDomain = domains.find((domain) => domain.connector_id !== project?.initiator_connector_id)?.domain_id
+    const instantiate = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(instantiate)
+      if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, instantiate(item)]))
+      if (value === '{{provider_domain}}') return providerDomain ?? value
+      if (value === '{{consumer_domain}}') return consumerDomain ?? value
+      return value
+    }
+    Modal.confirm({
+      title: `导入项目模板“${template.name}”？`,
+      content: '导入将覆盖当前尚未提交的编排草稿，不影响已经提交的编排版本。',
+      okText: '确认导入',
+      cancelText: '取消',
+      onOk: () => {
+        const draft = instantiate(template.workflow) as WorkflowDsl
+        setWorkflowDraft(draft)
+        workflowForm.setFieldValue('workflow', JSON.stringify(draft, null, 2))
+        setWorkflowMode('canvas')
+        setCanvasNonce((nonce) => nonce + 1)
+        message.success('项目模板已导入到编排草稿')
+      },
+    })
   }
   // 详情加载或编排版本变化时，用当前版本(或模板)初始化编排草稿
   useEffect(() => {
@@ -219,15 +259,17 @@ export default function Projects() {
     <Button icon={<ReloadOutlined />} onClick={() => projects.refetch()}>刷新</Button>
     <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>创建项目</Button>
   </Space> : <Button onClick={() => navigate('/projects')}>返回项目列表</Button>}>
-    {!detailId && <><Alert type="info" showIcon style={{ marginBottom: 16 }} message="项目基于已备案合约创建；编排发布后由所有参与方审核，审核通过才可编译并执行 Kuscia Job。" />
+    {!detailId && <>
     <Table rowKey="id" loading={projects.isLoading} dataSource={projects.data ?? []} columns={[
       { title: '项目名称', dataIndex: 'name' },
       { title: '合约', dataIndex: 'contract_id', render: (v: string) => <Text copyable={{ text: v }} code>{short(v)}</Text> },
       { title: '编排版本', dataIndex: 'current_version', render: (v: number | null) => v ? `v${v}` : '未提交' },
       { title: '状态', dataIndex: 'status', render: statusTag },
       { title: '更新时间', dataIndex: 'updated_at', render: (v: string) => new Date(v).toLocaleString() },
-      { title: '操作', render: (_: unknown, p: Project) => <Button type="link" onClick={() => navigate(`/projects/${p.id}`)}>进入项目</Button> },
+      { title: '操作', render: (_: unknown, p: Project) => <Button type="link" disabled={isAdmin} title={isAdmin ? '管理员仅可查看项目列表，不可进入项目工作台' : undefined} onClick={() => navigate(`/projects/${p.id}`)}>进入项目</Button> },
     ]} /></>}
+
+    {detailId && isAdmin && <Alert type="warning" showIcon message="管理员不可进入项目工作台" description="管理员仅保留项目列表查看权限，请使用项目参与方账户进入和操作项目。" />}
 
     <Modal title="基于合约创建项目" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createMut.isPending} destroyOnClose>
       <Form form={createForm} layout="vertical" onFinish={createMut.mutate}>
@@ -239,7 +281,7 @@ export default function Projects() {
       </Form>
     </Modal>
 
-    {detailId && <Card loading={detail.isLoading} bordered={false}>
+    {detailId && !isAdmin && <Card loading={detail.isLoading} bordered={false}>
       {project && <Tabs activeKey={activeTab} onChange={setActiveTab}
         items={[
         { key: 'overview', label: '项目概览', children: <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -255,7 +297,24 @@ export default function Projects() {
           <Card size="small" title="运行域"><Space wrap>{domains.map((domain) => <Tag key={domain.connector_id} color={domain.connector_id === project.initiator_connector_id ? 'blue' : undefined}>{domain.domain_id}{domain.connector_id === project.initiator_connector_id ? ' · initiator' : ''}</Tag>)}</Space></Card>
         </Space> },
         { key: 'workflow', label: '作业编排', children: <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          <Alert type="info" showIcon message="AppImage 的 I/O 契约会生成 DomainData 输入输出表单；控制边和数据边都会编译为 Kuscia task dependencies。" />
+          <Card size="small" title="从项目模板导入镜像工作流">
+            <Space wrap>
+              <Select
+                value={importTemplateId}
+                onChange={setImportTemplateId}
+                loading={projectTemplates.isLoading}
+                placeholder="选择项目模板"
+                style={{ minWidth: 320 }}
+                options={(projectTemplates.data ?? []).map((template) => ({
+                  value: template.id,
+                  label: `${template.name}（${Array.isArray((template.workflow as any).nodes) ? (template.workflow as any).nodes.length : 0} 个节点）`,
+                }))}
+                notFoundContent="暂无项目模板"
+              />
+              <Button type="primary" disabled={!importTemplateId} onClick={importProjectTemplate}>导入模板</Button>
+              <Text type="secondary">导入仅更新当前草稿，您可以继续调整后再提交审核。</Text>
+            </Space>
+          </Card>
           <Tabs activeKey={workflowMode} onChange={(key) => {
             const mode = key as 'canvas' | 'json'
             if (mode === 'json') workflowForm.setFieldValue('workflow', JSON.stringify(workflowDraft, null, 2))
@@ -268,6 +327,7 @@ export default function Projects() {
           <Space>
             <Button type="primary" loading={workflowMut.isPending} onClick={() => workflowMode === 'canvas' ? workflowMut.mutate({ id: detailId!, workflow: workflowDraft }) : workflowForm.submit()}>提交审核</Button>
             <Button onClick={resetDraft}>重置为当前版本</Button>
+            <Button onClick={() => setSaveTemplateOpen(true)}>保存为项目模板</Button>
           </Space>
         </Space> },
         { key: 'approval', label: '作业审核', children: currentVersion ? <Space direction="vertical" style={{ width: '100%' }} size={12}>
@@ -307,6 +367,13 @@ export default function Projects() {
     <Modal title={approval?.decision === 'approved' ? '审核通过' : '驳回编排'} open={!!approval} onCancel={() => setApproval(null)} onOk={() => approvalForm.submit()} confirmLoading={approvalMut.isPending}>
       <Form form={approvalForm} layout="vertical" onFinish={(v) => approvalMut.mutate({ projectId: detailId!, decision: approval!.decision, comment: v.comment })}>
         <Form.Item name="comment" label="审核意见"><Input.TextArea rows={3} placeholder="选填" /></Form.Item>
+      </Form>
+    </Modal>
+    <Modal title="保存为项目模板" open={saveTemplateOpen} onCancel={() => setSaveTemplateOpen(false)} onOk={() => templateForm.submit()} confirmLoading={saveTemplateMut.isPending}>
+      <Form form={templateForm} layout="vertical" onFinish={(values) => saveTemplateMut.mutate(values)}>
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="将保存当前画布中的镜像工作流" description="如需跨连接器复用，可在项目模板页面把具体 domain_id 改为 {{provider_domain}} / {{consumer_domain}}。" />
+        <Form.Item name="name" label="模板名称" rules={[{ required: true }]}><Input /></Form.Item>
+        <Form.Item name="description" label="模板说明"><Input.TextArea rows={3} /></Form.Item>
       </Form>
     </Modal>
   </Card>

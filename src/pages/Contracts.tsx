@@ -21,14 +21,14 @@ const { Text } = Typography
 const STATUS_TAG: Record<string, { color: string; text: string }> = {
   initiated: { color: 'blue', text: '已发起' },
   negotiating: { color: 'orange', text: '磋商中' },
-  filed: { color: 'green', text: '已备案' },
-  executing: { color: 'cyan', text: '执行中' },
+  filed: { color: 'blue', text: '已备案' },
+  executing: { color: 'blue', text: '执行中' },
   terminated: { color: 'default', text: '已终止' },
   rejected: { color: 'red', text: '已驳回' },
 }
 const MODE_TAG: Record<string, { color: string; text: string }> = {
-  accept: { color: 'cyan', text: '提案-接受' },
-  negotiate: { color: 'geekblue', text: '提案-修订' },
+  accept: { color: 'blue', text: '提案-接受' },
+  negotiate: { color: 'default', text: '提案-修订' },
 }
 const OP_LABELS: Record<string, string> = {
   propose: '提出提案', revise: '修订策略', accept: '接受签署', reject: '驳回',

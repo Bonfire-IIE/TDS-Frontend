@@ -16,26 +16,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 应用加载：若已有令牌，拉取当前用户
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = sessionStorage.getItem(TOKEN_KEY)
     if (!token) {
       setLoading(false)
       return
     }
     getMe()
       .then(setUser)
-      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .catch(() => sessionStorage.removeItem(TOKEN_KEY))
       .finally(() => setLoading(false))
   }, [])
 
   const login = async (username: string, password: string) => {
     const { access_token } = await apiLogin(username, password)
-    localStorage.setItem(TOKEN_KEY, access_token)
+    localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.setItem(TOKEN_KEY, access_token)
     const me = await getMe()
     setUser(me)
   }
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
     setUser(null)
     location.href = '/login'
   }

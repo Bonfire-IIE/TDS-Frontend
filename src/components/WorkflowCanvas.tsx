@@ -99,7 +99,7 @@ function TaskNode({ data, selected }: NodeProps<Node<TaskNodeData>>) {
       <Text type="secondary" style={{ fontSize: 12 }}>{(Array.isArray(data.parties) ? data.parties : []).filter((p) => isRecord(p) && typeof p.domain_id === 'string').map((p) => p.domain_id).join('、') || '未配置参与方'}</Text>
     </Space>
     {data.inputs.map((port, i, all) => <Handle key={`in:${port.name}`} id={`in:${port.name}`} type="target" position={Position.Left} style={{ top: `${((i + 1) * 100) / (all.length + 1)}%`, background: '#1677ff' }} title={`输入 ${port.name} (${port.kind})`} />)}
-    {data.outputs.map((port, i, all) => <Handle key={`out:${port.name}`} id={`out:${port.name}`} type="source" position={Position.Right} style={{ top: `${((i + 1) * 100) / (all.length + 1)}%`, background: '#52c41a' }} title={`输出 ${port.name} (${port.kind})`} />)}
+    {data.outputs.map((port, i, all) => <Handle key={`out:${port.name}`} id={`out:${port.name}`} type="source" position={Position.Right} style={{ top: `${((i + 1) * 100) / (all.length + 1)}%`, background: '#2563eb' }} title={`输出 ${port.name} (${port.kind})`} />)}
     <Handle id="control-out" type="source" position={Position.Bottom} style={{ background: '#8c8c8c' }} />
   </div>
 }

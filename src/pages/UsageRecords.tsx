@@ -6,15 +6,15 @@ import { listUsageRecords, UsageRecord } from '../api/usage'
 const { Text } = Typography
 
 const DECISION: Record<string, { color: string; text: string }> = {
-  allowed: { color: 'green', text: '允许' },
+  allowed: { color: 'blue', text: '允许' },
   denied: { color: 'red', text: '禁止策略拒绝' },
-  default_deny: { color: 'orange', text: '默认拒绝' },
+  default_deny: { color: 'red', text: '默认拒绝' },
 }
 const LIFECYCLE: Record<string, { color: string; text: string }> = {
   decided: { color: 'default', text: '已决策' },
   reserved: { color: 'blue', text: '已预占' },
-  consumed: { color: 'green', text: '已消费' },
-  released: { color: 'gold', text: '已释放' },
+  consumed: { color: 'blue', text: '已消费' },
+  released: { color: 'default', text: '已释放' },
 }
 
 export default function UsageRecords() {

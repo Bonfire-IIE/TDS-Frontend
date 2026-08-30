@@ -32,16 +32,19 @@ const ROLE_LABELS: Record<string, string> = {
   supervisor: '监管方',
 }
 
-const menuItems: MenuProps['items'] = [
+function menuItems(isAdmin: boolean): MenuProps['items'] {
+  return [
   {
     key: 'overview',
     icon: <DashboardOutlined />,
     label: '运行概览',
     children: [
-      { key: '/cluster', icon: <CloudServerOutlined />, label: '集群状态' },
+      ...(isAdmin ? [{ key: '/cluster', icon: <CloudServerOutlined />, label: '集群状态' }] : []),
       { key: '/connectors', icon: <ApiOutlined />, label: '连接器' },
-      { key: '/kuscia-master', icon: <CloudServerOutlined />, label: '控制节点' },
-      { key: '/kuscia-logs', icon: <FileTextOutlined />, label: 'Kuscia 日志' },
+      ...(isAdmin ? [
+        { key: '/kuscia-master', icon: <CloudServerOutlined />, label: '控制节点' },
+        { key: '/kuscia-logs', icon: <FileTextOutlined />, label: '控制日志' },
+      ] : []),
     ],
   },
   {
@@ -62,7 +65,15 @@ const menuItems: MenuProps['items'] = [
       { key: '/contract-templates', icon: <SnippetsOutlined />, label: '合约模板' },
     ],
   },
-  { key: '/projects', icon: <ProjectOutlined />, label: '项目管理' },
+  {
+    key: 'project-management',
+    icon: <ProjectOutlined />,
+    label: '项目管理',
+    children: [
+      { key: '/projects', icon: <ProjectOutlined />, label: '项目管理' },
+      { key: '/project-templates', icon: <SnippetsOutlined />, label: '项目模板' },
+    ],
+  },
   {
     key: 'application-management',
     icon: <AppstoreOutlined />,
@@ -80,7 +91,8 @@ const menuItems: MenuProps['items'] = [
       { key: '/audit', icon: <AuditOutlined />, label: '审计存证' },
     ],
   },
-]
+  ]
+}
 
 const routeMenus: Array<{ path: string; parent?: string; selectedPath?: string }> = [
   { path: '/cluster', parent: 'overview' },
@@ -92,16 +104,25 @@ const routeMenus: Array<{ path: string; parent?: string; selectedPath?: string }
   { path: '/appimages', parent: 'application-management' },
   { path: '/contracts', parent: 'digital-contracts' },
   { path: '/contract-templates', parent: 'digital-contracts' },
-  { path: '/projects' },
+  { path: '/projects', parent: 'project-management' },
+  { path: '/project-templates', parent: 'project-management' },
   { path: '/jobs', selectedPath: '/projects' },
   { path: '/usage', parent: 'governance' },
   { path: '/audit', parent: 'governance' },
 ]
 
+const PAGE_TITLES: Record<string, string> = {
+  '/cluster': '集群状态', '/connectors': '连接器', '/kuscia-master': '控制节点',
+  '/kuscia-logs': '控制日志', '/catalog': '数据资源', '/products': '数据产品',
+  '/contracts': '数字合约', '/contract-templates': '合约模板', '/projects': '项目管理', '/project-templates': '项目模板',
+  '/jobs': '项目管理', '/appimages': 'AppImage', '/usage': '使用控制记录', '/audit': '审计存证',
+}
+
 export default function MainLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
+  const isAdmin = Boolean(user?.roles?.some((role) => role === 'operator' || role === 'supervisor'))
   const activeMenu = useMemo(
     () => routeMenus.find(({ path }) => location.pathname === path || location.pathname.startsWith(`${path}/`)),
     [location.pathname],
@@ -111,6 +132,7 @@ export default function MainLayout() {
     activeMenu?.parent ? [activeMenu.parent] : ['overview'],
   )
   const [checkingMaster, setCheckingMaster] = useState(true)
+  const pageTitle = PAGE_TITLES[activeMenu?.path ?? ''] ?? '可信数据空间'
 
   useEffect(() => {
     if (activeParent) {
@@ -143,51 +165,36 @@ export default function MainLayout() {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" breakpoint="lg" collapsible>
-        <div
-          style={{
-            height: 48,
-            margin: 16,
-            color: '#fff',
-            fontWeight: 600,
-            fontSize: 16,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          🔥 Bonfire-TDS
+    <Layout className="app-shell" style={{ minHeight: '100vh' }}>
+      <Sider className="app-sider" theme="dark" width={232} collapsedWidth={76} breakpoint="lg" collapsible>
+        <div className="brand">
+          <span className="brand-copy">🔥</span>
+          <span className="brand-copy"><big>Bonfire-TDS</big></span>
         </div>
         <Menu
+          className="app-menu"
           theme="dark"
           mode="inline"
           selectedKeys={activeMenu ? [activeMenu.selectedPath ?? activeMenu.path] : []}
           openKeys={openKeys}
           onOpenChange={(keys) => setOpenKeys(keys)}
-          items={menuItems}
+          items={menuItems(isAdmin)}
           onClick={({ key }) => navigate(key)}
         />
       </Sider>
       <Layout>
-        <Header
-          style={{
-            background: '#fff',
-            padding: '0 24px',
-            fontSize: 18,
-            fontWeight: 500,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>可信数据空间服务平台</span>
+        <Header className="app-header">
+          <div className="header-context">
+            <div className="header-eyebrow">可信数据空间服务平台</div>
+            <div className="header-title">{pageTitle}</div>
+          </div>
           <Dropdown
             menu={{
               items: [{ key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout }],
             }}
           >
-            <Space style={{ cursor: 'pointer', fontSize: 14, fontWeight: 400 }}>
-              <Avatar size="small" icon={<UserOutlined />} />
+            <Space className="header-user" style={{ fontSize: 14, fontWeight: 400 }}>
+              <Avatar size={30} icon={<UserOutlined />} style={{ background: '#283654' }} />
               {user?.name || user?.username}
               {user?.roles?.map((r) => (
                 <Tag key={r} color="blue">
@@ -197,7 +204,7 @@ export default function MainLayout() {
             </Space>
           </Dropdown>
         </Header>
-        <Content style={{ margin: 24 }}>
+        <Content className="content-canvas">
           <Outlet />
         </Content>
       </Layout>

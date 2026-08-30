@@ -12,6 +12,7 @@ export interface Policy {
   type: 'allow' | 'prohibit'
   actions: string[]
   constraints: PolicyConstraints
+  obligations?: ('ephemeral' | 'watermark' | 'no_download' | 'no_export')[]
 }
 
 export type TransactionMode = 'accept' | 'negotiate'

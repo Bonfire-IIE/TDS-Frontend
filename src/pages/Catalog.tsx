@@ -14,7 +14,7 @@ import { useAuth } from '../auth/AuthContext'
 
 const { Text } = Typography
 
-const SEC_COLOR: Record<string, string> = { '1': 'green', '2': 'cyan', '3': 'gold', '4': 'orange', '5': 'red' }
+const SEC_COLOR: Record<string, string> = { '1': 'default', '2': 'default', '3': 'default', '4': 'gold', '5': 'red' }
 
 // 平台承载的数据类型；仅 table 为结构化（含列定义）
 const DATA_TYPES = [
@@ -116,7 +116,7 @@ export default function Catalog() {
               <Button type="link" size="small" danger>下架</Button>
             </Popconfirm>
           )}
-          {(isAdmin || r.created_by === user?.username) && (
+          {r.deletable && (
             <Popconfirm title="删除该资源？删除将同步移除 Kuscia DomainData；若已被数据产品引用会被拦截。"
               onConfirm={() => deleteMut.mutate(r.id)}>
               <Button type="link" size="small" danger>删除</Button>
@@ -187,7 +187,7 @@ export default function Catalog() {
                 notFoundContent={regConnId ? '该连接器暂无数据源' : '请先选择连接器'} />
             </Form.Item></Col>
             <Col span={12}><Form.Item name="relative_uri" label="数据文件路径 (relative_uri)"
-              extra="相对所选数据源根路径的文件路径，如 alice.csv；隐私计算应用据此导入数据。留空则由平台自动生成（可能与真实文件不符）。">
+              extra="相对所选数据源根路径的文件路径；应用据此导入数据。留空则由应用指定。">
               <Input placeholder="alice.csv" />
             </Form.Item></Col>
           </Row>

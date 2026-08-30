@@ -35,13 +35,21 @@ export const EXEC_ENV_LABELS: Record<string, string> = Object.fromEntries(
   EXEC_ENV_OPTIONS.map((o) => [o.value, o.label]),
 )
 
+const OBLIGATION_OPTIONS = [
+  { value: 'ephemeral', label: '阅后即焚' },
+  { value: 'watermark', label: '水印' },
+  { value: 'no_download', label: '禁止下载' },
+  { value: 'no_export', label: '禁止导出' },
+]
+const OBLIGATION_LABELS: Record<string, string> = Object.fromEntries(OBLIGATION_OPTIONS.map((item) => [item.value, item.label]))
+
 const TYPE_OPTIONS = [
   { value: 'allow', label: '允许' },
   { value: 'prohibit', label: '禁止' },
 ]
 
 export function emptyPolicy(): Policy {
-  return { type: 'allow', actions: [], constraints: { time_window: null, count: null, exec_env: null } }
+  return { type: 'allow', actions: [], constraints: { time_window: null, count: null, exec_env: null }, obligations: [] }
 }
 
 interface Props {
@@ -81,6 +89,15 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
                   value={row.type}
                   options={TYPE_OPTIONS}
                   onChange={(v) => patch(idx, { type: v as Policy['type'] })}
+                />
+                <Select
+                  mode="multiple"
+                  allowClear
+                  style={{ minWidth: 260 }}
+                  placeholder="执行义务"
+                  value={row.obligations ?? []}
+                  options={OBLIGATION_OPTIONS}
+                  onChange={(v) => patch(idx, { obligations: v as Policy['obligations'] })}
                 />
                 <Select
                   mode="multiple"
@@ -140,7 +157,7 @@ export function PolicyView({ policies }: { policies: Policy[] }) {
         return (
           <Card key={idx} size="small" style={{ background: '#fafafa' }}>
             <Space wrap>
-              <Tag color={p.type === 'allow' ? 'green' : 'red'}>{p.type === 'allow' ? '允许' : '禁止'}</Tag>
+              <Tag color={p.type === 'allow' ? 'blue' : 'red'}>{p.type === 'allow' ? '允许' : '禁止'}</Tag>
               {p.actions.map((a) => <Tag key={a}>{ACTION_LABELS[a] ?? a}</Tag>)}
             </Space>
             <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
@@ -149,6 +166,7 @@ export function PolicyView({ policies }: { policies: Policy[] }) {
               {p.constraints?.exec_env && <span>执行环境：{EXEC_ENV_LABELS[p.constraints.exec_env] ?? p.constraints.exec_env}</span>}
               {!tw && p.constraints?.count == null && !p.constraints?.exec_env && <span>无约束</span>}
             </div>
+            {!!p.obligations?.length && <div style={{ marginTop: 7 }}><Text type="secondary">执行义务：</Text>{p.obligations.map((item) => <Tag key={item} color="blue">{OBLIGATION_LABELS[item] ?? item}</Tag>)}</div>}
           </Card>
         )
       })}

@@ -7,7 +7,7 @@ import { PlusOutlined, ReloadOutlined, LoadingOutlined } from '@ant-design/icons
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Job, JobStatus, listJobs, getJob, createJob, refreshJob } from '../api/jobs'
 import { listContracts } from '../api/contracts'
-import { listProducts, getProduct } from '../api/products'
+import { listProducts } from '../api/products'
 import { listAppImages } from '../api/appimages'
 import { preflightUsage } from '../api/usage'
 
@@ -62,18 +62,13 @@ export default function Jobs() {
     [appimages.data],
   )
 
-  // 表单联动：当前所选合约 -> 对应产品 -> allowed_appimages
+  // 表单联动：执行准入以最终备案合约的 allowed_appimages 为准。
   const selectedContractId = Form.useWatch('contract_id', form)
   const selectedAppImage = Form.useWatch('app_image', form)
   const selectedContract = useMemo(
     () => filedContracts.find((c) => c.contract_id === selectedContractId),
     [filedContracts, selectedContractId],
   )
-  const productDetail = useQuery({
-    queryKey: ['product', selectedContract?.product_id],
-    queryFn: () => getProduct(selectedContract!.product_id),
-    enabled: !!selectedContract?.product_id,
-  })
   const preflight = useQuery({
     queryKey: ['usage-preflight', selectedContractId, selectedAppImage],
     queryFn: () => preflightUsage(selectedContractId, selectedAppImage),
@@ -81,15 +76,15 @@ export default function Jobs() {
     retry: false,
   })
 
-  // 尽力而为：产品声明了 allowed_appimages 则据此过滤，否则列全部已注册应用
+  // 空白名单用于兼容历史合约，含义为不限制应用。
   const appOptions = useMemo(() => {
-    const allowed = productDetail.data?.allowed_appimages
+    const allowed = selectedContract?.allowed_appimages
     const filtered =
       allowed && allowed.length > 0
         ? registeredApps.filter((a) => allowed.includes(a.name))
         : registeredApps
     return filtered.map((a) => ({ value: a.name, label: a.display_name }))
-  }, [registeredApps, productDetail.data])
+  }, [registeredApps, selectedContract])
 
   const onErr = (e: any) => {
     const detail = e.response?.data?.detail ?? '操作失败'
@@ -215,11 +210,11 @@ export default function Jobs() {
                 : (preflight.error as any)?.response?.data?.detail} />
           )}
           <Form.Item name="app_image" label="应用 (AppImage)" rules={[{ required: true, message: '请选择应用' }]}
-            extra={productDetail.data?.allowed_appimages?.length ? '已按合约对应产品声明的可用应用过滤' : undefined}>
+            extra={selectedContract?.allowed_appimages?.length ? '已按最终备案合约的应用白名单过滤' : undefined}>
             <Select
               placeholder={selectedContract ? '选择应用' : '请先选择合约'}
               disabled={!selectedContract}
-              loading={appimages.isLoading || productDetail.isFetching}
+              loading={appimages.isLoading}
               options={appOptions}
               notFoundContent="无可用应用"
             />

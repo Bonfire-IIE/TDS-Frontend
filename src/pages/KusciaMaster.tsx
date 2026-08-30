@@ -37,9 +37,6 @@ export default function KusciaMaster() {
     <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 920 }}>
       <div>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>控制节点</Typography.Title>
-        <Typography.Text type="secondary">
-          查看中心平台当前使用的 Kuscia Master。部署、导入与切换统一在初始化引导中完成。
-        </Typography.Text>
       </div>
 
       <Space wrap>
@@ -73,13 +70,6 @@ export default function KusciaMaster() {
               <Descriptions.Item label="连接器接入地址">{master.deploy_endpoint || '—'}</Descriptions.Item>
             </Descriptions>
             {master.last_error && <Alert type="error" showIcon style={{ marginTop: 16 }} message="最近一次连接失败" description={master.last_error} />}
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginTop: 20 }}
-              message="清除只影响中心平台配置"
-              description="不会停止或删除 Kuscia Master 容器。清除后平台将删除该节点数据库记录和已上传的凭据副本，并返回初始化引导。"
-            />
             <div style={{ marginTop: 16 }}>
               <Popconfirm
                 title="清除当前管理节点？"

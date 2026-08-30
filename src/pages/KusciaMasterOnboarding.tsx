@@ -125,7 +125,7 @@ export default function KusciaMasterOnboarding() {
   const certificateCommand = `MASTER_CONTAINER="$(docker ps --format '{{.Names}}' | grep 'kuscia-master' | head -n1)"\nmkdir -p ./kuscia-master-certs\ndocker cp "$MASTER_CONTAINER":/home/kuscia/var/certs/. ./kuscia-master-certs/\nls -1 ./kuscia-master-certs`
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: '32px 16px' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f6f8', padding: '32px 16px' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={3} style={{ marginBottom: 4 }}>🔥 中心平台初始化向导</Title>
