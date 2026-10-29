@@ -1,27 +1,6 @@
-import type { ThemeConfig } from 'antd'
-
+import { theme, type ThemeConfig } from 'antd'
 export const bonfireTheme: ThemeConfig = {
-  token: {
-    colorPrimary: '#2563eb',
-    colorInfo: '#2563eb',
-    // 工作区只使用三档语义色：蓝=一般/肯定，黄=警告，红=错误/危险。
-    colorSuccess: '#2563eb',
-    colorWarning: '#ca8a04',
-    colorError: '#dc2626',
-    colorText: '#172033',
-    colorTextSecondary: '#667085',
-    colorBorder: '#e3e7ee',
-    colorBgLayout: '#f4f6f8',
-    borderRadius: 8,
-    borderRadiusLG: 12,
-    boxShadowSecondary: '0 12px 32px rgba(15, 23, 42, 0.10)',
-    fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
-  },
-  components: {
-    Button: { controlHeight: 36, primaryShadow: 'none', fontWeight: 600 },
-    Card: { headerFontSize: 16, headerFontSizeSM: 14 },
-    Menu: { darkItemBg: '#10182b', darkSubMenuItemBg: '#10182b', darkItemSelectedBg: '#283654', darkItemHoverBg: '#1d2942', itemBorderRadius: 8 },
-    Table: { headerBg: '#f7f8fa', headerColor: '#475467', borderColor: '#e7eaf0' },
-    Tabs: { inkBarColor: '#2563eb', itemSelectedColor: '#1d4ed8' },
-  },
+ token: { colorPrimary:'#c2410c',colorInfo:'#c2410c',colorSuccess:'#15803d',colorWarning:'#a16207',colorError:'#b91c1c',colorText:'#292524',colorTextSecondary:'#57534e',colorBgLayout:'#f5f3f0',colorBgContainer:'#ffffff',colorBorder:'#d6cec5',borderRadius:8,borderRadiusLG:12,controlHeight:38,fontFamily:'Inter, "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',boxShadowSecondary:'0 12px 36px rgba(41,37,36,.12)' },
+ components:{ Button:{fontWeight:600},Menu:{itemBg:'transparent',subMenuItemBg:'transparent',itemSelectedBg:'#fff1df',itemSelectedColor:'#9a3412',itemHoverBg:'#f3eee8'},Table:{headerBg:'#faf9f7'},Layout:{headerBg:'#ffffff',siderBg:'#fbfaf8'} }
 }
+export const darkTheme: ThemeConfig = { ...bonfireTheme, algorithm:theme.darkAlgorithm, token:{...bonfireTheme.token,colorPrimary:'#fb923c',colorInfo:'#fb923c',colorLink:'#fb923c',colorLinkHover:'#fdba74',colorTextLightSolid:'#171513',colorText:'#f5f5f4',colorTextSecondary:'#d6d3d1',colorBgLayout:'#171513',colorBgContainer:'#24201d',colorBorder:'#655a50'},components:{...bonfireTheme.components,Button:{fontWeight:600,primaryColor:'#171513'},Menu:{itemBg:'transparent',subMenuItemBg:'transparent',itemSelectedBg:'#5c2d18',itemSelectedColor:'#fed7aa',itemHoverBg:'#302a25'},Table:{headerBg:'#302a25'},Layout:{headerBg:'#201d1a',siderBg:'#201d1a'}} }

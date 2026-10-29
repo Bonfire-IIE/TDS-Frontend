@@ -1,19 +1,25 @@
 import { api, ApiResp } from './client'
-import { newIdempotencyKey } from '../utils/idempotency'
 
 export type ProjectStatus = 'draft' | 'pending_approval' | 'approved' | 'running' | 'completed' | 'failed'
-export type RunStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+export type RunStatus = 'pending' | 'pending-dispatch' | 'accepted' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface ProjectDomain {
+  contract_role?: 'provider' | 'consumer' | null
   connector_id: string
   domain_id: string
+  connector_name: string
+  org_name: string | null
 }
 
 export interface AvailableDomainData {
+  input_source_type?: string | null
+  input_format?: string | null
+  selection_scope?: 'contract' | 'consumer' | null
   resource_id: string
   domaindata_id: string
   domain_id: string
   connector_id: string
+  connector_name: string
   name: string
   data_type: string
   datasource_type: string | null
@@ -62,6 +68,25 @@ export interface ProjectRun {
   created_by: string
   created_at: string
   updated_at: string
+}
+
+export interface RunTaskProgress {
+  total: number
+  completed: number
+  running: number
+  failed: number
+  cancelled: number
+  pending: number
+  unknown: number
+  observed: boolean
+  updated_at: string
+  tasks: {
+    node_id: string
+    task_id: string | null
+    name: string
+    state: string
+    message: string | null
+  }[]
 }
 
 export interface Project {
@@ -132,8 +157,7 @@ export async function approveWorkflow(projectId: string, decision: 'approved' | 
 }
 
 export async function executeProject(id: string) {
-  const idempotencyKey = newIdempotencyKey()
-  const { data } = await api.post<ApiResp<ProjectRun>>(`/projects/${id}/runs`, { idempotency_key: idempotencyKey })
+  const { data } = await api.post<ApiResp<ProjectRun>>(`/projects/${id}/runs`)
   return data.data
 }
 
@@ -141,3 +165,6 @@ export async function refreshProjectRun(projectId: string, runId: string) {
   const { data } = await api.post<ApiResp<ProjectRun>>(`/projects/${projectId}/runs/${runId}/refresh`)
   return data.data
 }
+
+export async function cancelProjectRun(projectId:string,runId:string){const {data}=await api.post<ApiResp<ProjectRun>>(`/projects/${projectId}/runs/${runId}/cancel`);return data.data}
+export async function retryProjectRun(projectId:string,runId:string){const {data}=await api.post<ApiResp<ProjectRun>>(`/projects/${projectId}/runs/${runId}/retry`);return data.data}

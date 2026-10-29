@@ -1,5 +1,4 @@
 import { api, ApiResp } from './client'
-import { newIdempotencyKey } from '../utils/idempotency'
 
 export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 
@@ -40,7 +39,6 @@ export interface JobCreate {
   input_consumer_domaindata_id: string
   join_keys?: string[]
   name?: string
-  idempotency_key?: string
 }
 
 export async function listJobs() {
@@ -54,7 +52,7 @@ export async function getJob(id: string) {
 }
 
 export async function createJob(body: JobCreate) {
-  const { data } = await api.post<ApiResp<Job>>('/jobs', { ...body, idempotency_key: body.idempotency_key ?? newIdempotencyKey() })
+  const { data } = await api.post<ApiResp<Job>>('/jobs', body)
   return data.data
 }
 

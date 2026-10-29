@@ -18,7 +18,7 @@ export interface AppImage {
   config_templates: Record<string, any> | null
   job_template: Record<string, any> | null
   io_schema: { inputs?: { name: string; kind: string; formats?: string[]; source_types?: string[] }[]; outputs?: { name: string; kind: string; formats?: string[]; source_types?: string[] }[] } | null
-  party_schema: { roles?: { name: string; title?: string; min?: number; max?: number }[] } | null
+  party_schema: { architectures?: ('cs'|'outsourced')[]; roles?: (string | { name: string; title?: string; min?: number; max?: number })[] } | null
   parameter_schema: Record<string, any> | null
   ui_schema: Record<string, any> | null
   task_input_template: Record<string, any> | any[] | null

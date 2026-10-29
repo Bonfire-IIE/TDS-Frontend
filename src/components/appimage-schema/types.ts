@@ -7,6 +7,7 @@ export interface PartyRoleDefinition {
 }
 
 export interface PartySchema {
+  architectures?: ('cs'|'outsourced')[]
   roles: PartyRoleDefinition[]
 }
 

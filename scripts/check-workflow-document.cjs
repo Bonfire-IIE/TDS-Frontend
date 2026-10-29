@@ -1,0 +1,24 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),ts=require('typescript'),vm=require('node:vm');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../src/components/workflowDocument.ts'),'utf8');
+// Match the actual HTTP IP origin: getRandomValues exists, randomUUID does not.
+const browserCrypto={getRandomValues:bytes=>require('node:crypto').webcrypto.getRandomValues(bytes)};
+const uuidBox={exports:{},crypto:browserCrypto};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(require('node:path').join(__dirname,'../src/utils/uuid.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,uuidBox);
+const box={exports:{},structuredClone,crypto:browserCrypto,require:name=>{assert.equal(name,'../utils/uuid');return uuidBox.exports}};
+vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,box);
+const {copySelection,pasteSelection,removeSelection,moveWorkflowNodes}=box.exports;
+const w={nodes:[{id:'one-a',alias:'a',position:{x:20,y:30},parameters:{n:0},detached:true,application_instance:'one',template_task:'a',template_version:'v'},{id:'one-b',alias:'b',position:{x:100,y:30},parameters:{n:2},detached:true,application_instance:'one',template_task:'b',template_version:'v'}],applications:[{id:'two',version_id:'v',position:{x:300,y:400},parameters:{n:3}}],edges:[{source:'one-a',target:'one-b',type:'data',source_handle:'stable-out',target_handle:'stable-in'},{source:'one-b',target:'two',type:'control'}],detached_applications:[{id:'one',version_id:'v',roles:{sender:'org'},parameters:{n:5}}]};
+assert.throws(()=>copySelection(w,['one-a']),/全部任务/);
+const clip=copySelection(w,['one-a','one-b']);
+assert.equal(clip.edges.length,1);
+const pasted=pasteSelection(w,clip,{x:500,y:600}),added=pasted.workflow.nodes.slice(2),origin=pasted.workflow.detached_applications[1];
+assert.equal(added[0].position.x,500);assert.equal(added[0].position.y,600);assert.equal(added[1].position.x,580);
+assert.equal(added[0].id,origin.id+'-a');assert.equal(added[0].application_instance,origin.id);assert.equal(added[0].parameters.n,0);
+assert.equal(pasted.workflow.edges[2].source,added[0].id);assert.equal(pasted.workflow.edges[2].target,added[1].id);assert.equal(pasted.workflow.edges[2].source_handle,'stable-out');
+assert.equal(w.nodes.length,2);assert.equal(w.edges.length,2);
+assert.equal(removeSelection(pasted.workflow,pasted.ids,[]).edges.length,2);
+const moved=moveWorkflowNodes(w,[{id:'one-a',position:{x:-120,y:60}},{id:'two',position:{x:40,y:80}},{id:'one-b',position:{x:NaN,y:Infinity}},{id:'missing',position:{x:0,y:0}}]);
+assert.equal(moved.nodes.length,2);assert.equal(moved.applications.length,1);assert.equal(moved.nodes[0].position.x,-120);assert.equal(moved.applications[0].position.y,80);
+assert.equal(moved.nodes[1],w.nodes[1]);assert.equal(moved.edges,w.edges);assert.equal(moved.nodes[0].parameters,w.nodes[0].parameters);
+assert.equal(w.nodes[0].position.x,20);assert.equal(moveWorkflowNodes(w,[{id:'one-a',position:{x:Infinity,y:0}}]),w);
+console.log('Workflow document: complete provenance, fresh IDs, internal edges, stable handles, positioning and deletion passed');

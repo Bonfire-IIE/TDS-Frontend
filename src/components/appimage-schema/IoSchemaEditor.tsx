@@ -1,7 +1,7 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { Button, Form, Input, Select, Space, Switch, Typography } from 'antd'
 import { useEffect } from 'react'
-import type { IoPortDefinition, IoSchema, PartyRoleDefinition } from './types'
+import type { IoSchema, PartyRoleDefinition } from './types'
 
 export interface IoSchemaEditorProps {
   value?: Partial<IoSchema> | null

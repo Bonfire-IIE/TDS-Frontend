@@ -17,7 +17,7 @@ export function RoleSchemaEditor({ value, onChange, disabled }: RoleSchemaEditor
   }, [form, value])
 
   return (
-    <Form form={form} component={false} onValuesChange={(_, all) => onChange?.({ roles: all.roles ?? [] })}>
+    <Form form={form} component={false} onValuesChange={(_, all) => onChange?.({ ...value, roles: all.roles ?? [] })}>
       <Form.List name="roles">
         {(fields, { add, remove }) => (
           <Space direction="vertical" style={{ width: '100%' }} size="small">

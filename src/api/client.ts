@@ -34,12 +34,6 @@ export interface ApiResp<T> {
   data: T
 }
 
-export interface ClusterStatus {
-  kusciaApi: 'up' | 'down'
-  domains: { domainId: string; role: string; nodeCount: number }[]
-  error?: string
-}
-
 export interface HealthStatus {
   status: string
   services: Record<string, { ok: boolean; error?: string }>
@@ -83,11 +77,6 @@ export async function register(
 
 export async function getMe() {
   const { data } = await api.get<ApiResp<CurrentUser>>('/identity/me')
-  return data.data
-}
-
-export async function getClusterStatus() {
-  const { data } = await api.get<ApiResp<ClusterStatus>>('/cluster/status')
   return data.data
 }
 

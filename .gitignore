@@ -1,2 +1,19 @@
 **/node_modules
 dist
+
+# Vite / TypeScript local caches and coverage output
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# Local build snapshots generated while preparing release images
+.build-*/
+
+# Local environment files and editor/OS metadata
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/

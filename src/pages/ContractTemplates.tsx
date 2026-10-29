@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Card, Table, Tag, Button, Space, Modal, Form, Input, message, Popconfirm, Typography,
+  Card, Tabs, Alert, Table, Tag, Button, Space, Modal, Form, Input, message, Popconfirm, Typography,
 } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -29,6 +29,7 @@ export default function ContractTemplates() {
 
   const list = useQuery({ queryKey: ['contract-templates'], queryFn: listContractTemplates })
 
+  const [scope,setScope]=useState('all')
   const [editTarget, setEditTarget] = useState<ContractTemplate | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [viewTarget, setViewTarget] = useState<ContractTemplate | null>(null)
@@ -99,13 +100,16 @@ export default function ContractTemplates() {
         </Space>
       }
     >
-      <Table rowKey="id" loading={list.isLoading} dataSource={list.data ?? []} columns={columns} pagination={{ pageSize: 10 }} />
+      <p className="page-intro">将可复用的数据使用规则保存为模板，在上架产品时应用。系统模板与个人模板分别管理。</p>
+      <Tabs activeKey={scope} onChange={setScope} items={[{key:'all',label:'全部模板'},{key:'system',label:'系统预置'},{key:'mine',label:'我的模板'}]}/>
+      {list.isError && <Alert type="error" message="模板加载失败，请重试"/>}
+      <Table rowKey="id" loading={list.isLoading} dataSource={(list.data ?? []).filter(t=>scope==='all'||(scope==='system'?t.scope==='system':t.owner===user?.username))} columns={columns} pagination={{ pageSize: 10 }} />
 
       {/* 新建 / 编辑 */}
       <Modal
         title={editTarget ? '编辑合约模板' : '新建合约模板'}
         open={createOpen || !!editTarget}
-        width={760}
+        width={1160}
         confirmLoading={createMut.isPending || updateMut.isPending}
         onCancel={() => { setCreateOpen(false); setEditTarget(null); form.resetFields() }}
         onOk={() => form.submit()}
@@ -120,17 +124,17 @@ export default function ContractTemplates() {
             else createMut.mutate(v)
           }}
         >
-          <Form.Item name="name" label="模板名称" rules={[{ required: true }]}>
+          <div className="center-form-columns"><section className="center-form-panel"><h3>模板信息</h3><Form.Item name="name" label="模板名称" rules={[{ required: true }]}>
             <Input placeholder="模板对外展示名称" />
           </Form.Item>
           <Form.Item name="description" label="说明"><Input.TextArea rows={2} /></Form.Item>
-          <Form.Item
+          </section><section className="center-form-panel"><h3>使用规则</h3><Form.Item
             name="policies"
             label="模板策略"
             rules={[{ validator: (_, v: Policy[]) => (v && v.length > 0 ? Promise.resolve() : Promise.reject(new Error('至少配置一条策略'))) }]}
           >
             <PolicyEditor />
-          </Form.Item>
+          </Form.Item></section></div>
         </Form>
       </Modal>
 
@@ -138,7 +142,7 @@ export default function ContractTemplates() {
       <Modal
         title={`模板详情：${viewTarget?.name ?? ''}`}
         open={!!viewTarget}
-        width={640}
+        width={1040}
         footer={null}
         onCancel={() => setViewTarget(null)}
         destroyOnClose

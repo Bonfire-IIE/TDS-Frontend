@@ -1,7 +1,14 @@
+import { useEditorRoute } from '../components/useEditorRoute'
+import EditorPage from '../components/EditorPage'
+import { useListState } from '../components/useListState'
+import RouteSurface from '../components/RouteSurface'
+import DetailPage from '../components/DetailPage'
+import { useDetailRoute } from '../components/useDetailRoute'
+import BusinessDetails from '../components/BusinessDetails'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Card, Tag, Button, Space, Form, Input, Select, message, Popconfirm,
-  Drawer, Descriptions, Typography, Upload, Alert, Divider,
+  Collapse, Card, Tag, Button, Space, Form, Input, Select, message, Popconfirm,
+  Descriptions, Typography, Upload, Alert, Divider,
   Tabs, Empty, Steps,
 } from 'antd'
 import { PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
@@ -20,22 +27,22 @@ import type { IoSchema, ParameterSchemaValue, PartySchema } from '../components/
 const { Text } = Typography
 
 const CAP_TAG: Record<string, { color: string; text: string }> = {
-  mpc: { color: 'blue', text: '安全多方计算 (MPC)' },
-  stats: { color: 'blue', text: '联合统计' },
-  train: { color: 'blue', text: '联合训练' },
+  mpc: { color: 'geekblue', text: '安全多方计算 (MPC)' },
+  stats: { color: 'cyan', text: '联合统计' },
+  train: { color: 'purple', text: '联合训练' },
   custom: { color: 'default', text: '自定义' },
 }
 const SCOPE_TAG: Record<string, { color: string; text: string }> = {
-  builtin: { color: 'default', text: '内置' },
+  builtin: { color: 'gold', text: '内置' },
   custom: { color: 'blue', text: '自定义' },
 }
 const STATUS_TAG: Record<string, { color: string; text: string }> = {
-  registered: { color: 'blue', text: '已注册' },
+  registered: { color: 'green', text: '已注册' },
   delisted: { color: 'default', text: '已下架' },
 }
 const REGISTRY_SOURCE = {
-  platform: { color: 'blue', text: '平台 Harbor' },
-  third_party: { color: 'default', text: '第三方仓库' },
+  platform: { color: 'green', text: '平台 Harbor' },
+  third_party: { color: 'purple', text: '第三方仓库' },
 }
 
 const CAP_OPTIONS = [
@@ -58,33 +65,25 @@ const UC_CAP_LABELS: Record<string, string> = Object.fromEntries(
 
 const DEFAULT_DEPLOY_TEMPLATES = [{ name: 'app', replicas: 1, restart_policy: 'Never', containers: [{ name: 'app', command: ['sh', '-c', 'sleep 1'], working_dir: '/' }] }]
 
-const CAP_BACKGROUND: Record<string, { background: string; accent: string }> = {
-  // 头图是能力识别元素，不承载状态语义，允许使用克制的分类色。
-  mpc: { background: 'linear-gradient(145deg, #eef2ff 0%, #c7d2fe 100%)', accent: 'rgba(79,70,229,.28)' },
-  stats: { background: 'linear-gradient(145deg, #ecfeff 0%, #a5f3fc 100%)', accent: 'rgba(8,145,178,.25)' },
-  train: { background: 'linear-gradient(145deg, #faf5ff 0%, #e9d5ff 100%)', accent: 'rgba(147,51,234,.23)' },
-  custom: { background: 'linear-gradient(145deg, #f8fafc 0%, #dbe4ee 100%)', accent: 'rgba(71,85,105,.20)' },
-}
+
 
 // 格式化 JSON 展示（失败原样返回）
 export default function AppImages() {
   const { user } = useAuth()
   const isOperator = user?.roles?.includes('operator')
-  const isSupervisor = user?.roles?.includes('supervisor')
-  const isAdmin = isOperator || isSupervisor
   const qc = useQueryClient()
 
   const list = useQuery({ queryKey: ['appimages'], queryFn: listAppImages })
 
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createOpen, setCreateOpen,editorId] = useEditorRoute('/appimages')
   const [partySchema, setPartySchema] = useState<PartySchema>({ roles: [] })
   const [ioSchema, setIoSchema] = useState<IoSchema>({ inputs: [], outputs: [] })
   const [parameterSchemas, setParameterSchemas] = useState<ParameterSchemaValue>({ parameterSchema: { type: 'object', properties: {} }, uiSchema: {} })
   const [createStep, setCreateStep] = useState(0)
   const [advancedSchemaText, setAdvancedSchemaText] = useState('')
-  const [detail, setDetail] = useState<AppImage | null>(null)
+  const [detail, setDetail] = useDetailRoute<AppImage>('/appimages', list.data ?? [])
   const [editing, setEditing] = useState<AppImage | null>(null)
-  const [filters, setFilters] = useState({ keyword: '', capability: '', registrySource: '', scope: '' })
+  const [filters, setFilters] = useListState({ keyword: '', capability: '', registrySource: '', scope: '' })
   const [visibleCount, setVisibleCount] = useState(12)
   const [form] = Form.useForm()
   const registrySource = Form.useWatch('registry_source', form)
@@ -110,27 +109,16 @@ export default function AppImages() {
     onError: onErr,
   })
 
-  // 仅自定义且（管理员或本人登记）可下架；内置能力受保护。
+  // 仅自定义且（运营方或本人登记）可下架；内置不可下架
   const canDelist = (a: AppImage) =>
-    a.scope === 'custom' && a.status === 'registered' && (isAdmin || a.created_by === user?.username)
+    a.scope === 'custom' && a.status === 'registered' && (isOperator || a.created_by === user?.username)
 
   const onFinish = async (v: any) => {
+    if(editorId&&editing?.id!==editorId){message.error("应用不存在或不可编辑");return}
     const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? {}, null, 2)
     let deploy_templates: any[]
     try {
-      // DeployTemplateEditor stores an already parsed array in the form.  Do not
-      // send that value through the text parser again (older versions could lose
-      // the array while the editor was being switched between tabs and produce
-      // the misleading "必须是非空数组" error).  Keep parsing support for
-      // hand-entered YAML/JSON text values.
-      if (Array.isArray(v.deploy_templates)) {
-        deploy_templates = v.deploy_templates
-      } else {
-        deploy_templates = (await parseAppImageConfig(asText(v.deploy_templates), 'deploy_templates')).deploy_templates
-      }
-      if (!Array.isArray(deploy_templates) || deploy_templates.length === 0) {
-        throw new Error('部署模板必须是非空数组')
-      }
+      deploy_templates = (await parseAppImageConfig(asText(v.deploy_templates), 'deploy_templates')).deploy_templates
     } catch (e: any) {
       message.error(e.response?.data?.detail ?? e.message ?? '部署模板解析失败')
       return
@@ -187,11 +175,20 @@ export default function AppImages() {
     setParameterSchemas({ parameterSchema: { type: 'object', properties: {} }, uiSchema: {} })
   }
   const openEdit = (a: AppImage) => {
-    setDetail(null); setEditing(a); setCreateStep(0); setCreateOpen(true)
+    setEditing(a); setCreateStep(0); setCreateOpen(a.id)
     form.setFieldsValue({ ...a, task_input_template: a.task_input_template ? JSON.stringify(a.task_input_template, null, 2) : '' })
-    setPartySchema(a.party_schema ?? { roles: [] }); setIoSchema(a.io_schema ?? { inputs: [], outputs: [] })
-    setParameterSchemas({ parameterSchema: a.parameter_schema ?? { type: 'object', properties: {} }, uiSchema: a.ui_schema ?? {} })
+    setPartySchema({ ...a.party_schema, architectures:a.party_schema?.architectures||['cs'], roles: (a.party_schema?.roles || []).map(r => typeof r === 'string' ? {name:r,title:r,min:0,max:1} : { ...r, title:r.title || r.name, min:r.min ?? 0, max:r.max ?? 1 }) })
+    const ports = (items: NonNullable<AppImage['io_schema']>['inputs']) => (items || []).map(p => ({...p, title:p.name, kind: (['table','file','image','text','model','custom'].includes(p.kind) ? p.kind : 'custom') as 'table'|'file'|'image'|'text'|'model'|'custom'}))
+    setIoSchema({ inputs:ports(a.io_schema?.inputs),outputs:ports(a.io_schema?.outputs) })
+    setParameterSchemas({ parameterSchema: { ...a.parameter_schema, type: 'object', properties: a.parameter_schema?.properties || {} }, uiSchema: a.ui_schema ?? {} })
   }
+
+  useEffect(()=>{
+    if(!createOpen)return
+    if(!editorId){setEditing(null);return}
+    const app=list.data?.find(a=>a.id===editorId)
+    if(app&&editing?.id!==editorId)openEdit(app)
+  },[createOpen,editorId,list.data,editing?.id])
 
   const importFile = async (file: File) => {
     try {
@@ -221,9 +218,9 @@ export default function AppImages() {
         }
       }
       form.setFieldsValue(values)
-      message.success('AppImage 配置已解析并填入表单')
+      message.success('应用镜像配置已解析并填入表单')
     } catch (error: any) {
-      message.error(error.response?.data?.detail ?? error.message ?? 'AppImage 文件解析失败')
+      message.error(error.response?.data?.detail ?? error.message ?? '应用镜像文件解析失败')
     }
     return false
   }
@@ -231,14 +228,8 @@ export default function AppImages() {
   const validatePlatformSyntax = async () => {
     try {
       const values = form.getFieldsValue(['deploy_templates', 'config_templates'])
-      const deploy = Array.isArray(values.deploy_templates)
-        ? { deploy_templates: values.deploy_templates }
-        : await parseAppImageConfig(values.deploy_templates ?? '', 'deploy_templates')
-      const config = values.config_templates && typeof values.config_templates === 'object'
-        ? { config_templates: values.config_templates }
-        : values.config_templates?.trim()
-          ? await parseAppImageConfig(values.config_templates, 'config_templates')
-          : {}
+      await parseAppImageConfig(values.deploy_templates ?? '', 'deploy_templates')
+      if (values.config_templates?.trim()) await parseAppImageConfig(values.config_templates, 'config_templates')
       message.success('平台语法检查通过')
     } catch (error: any) {
       message.error(error.response?.data?.detail ?? error.message ?? '平台语法检查失败')
@@ -257,8 +248,8 @@ export default function AppImages() {
   const visibleApps = filtered.slice(0, visibleCount)
 
   return (
-    <Card
-      title="AppImage 应用管理"
+    <RouteSurface
+      title="应用镜像"
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => list.refetch()}>刷新</Button>
@@ -266,29 +257,30 @@ export default function AppImages() {
         </Space>
       }
     >
-      <Card size="small" style={{ marginBottom: 20, background: '#fafafa' }}>
+      {list.isError && <Alert type="error" showIcon message="数据加载失败，当前列表可能不完整" action={<Button onClick={()=>list.refetch()}>重试</Button>} style={{marginBottom:16}}/>}
+      <Card size="small" style={{ marginBottom: 20, background: 'var(--canvas)' }}>
         <Space wrap size={12}>
-          <Input.Search allowClear placeholder="检索应用昵称、标识或镜像" style={{ width: 300 }} onChange={(e) => setFilters((f) => ({ ...f, keyword: e.target.value }))} />
-          <Select allowClear placeholder="应用能力" style={{ width: 190 }} options={CAP_OPTIONS} onChange={(v) => setFilters((f) => ({ ...f, capability: v ?? '' }))} />
-          <Select allowClear placeholder="仓库来源" style={{ width: 150 }} options={[{ value: 'platform', label: '平台 Harbor' }, { value: 'third_party', label: '第三方仓库' }]} onChange={(v) => setFilters((f) => ({ ...f, registrySource: v ?? '' }))} />
-          <Select allowClear placeholder="来源" style={{ width: 130 }} options={[{ value: 'builtin', label: '内置' }, { value: 'custom', label: '自定义' }]} onChange={(v) => setFilters((f) => ({ ...f, scope: v ?? '' }))} />
+          <Input.Search allowClear value={filters.keyword} placeholder="检索应用昵称、标识或镜像" style={{ width: 300 }} onChange={(e) => setFilters((f) => ({ ...f, keyword: e.target.value }))} />
+          <Select allowClear value={filters.capability||undefined} placeholder="应用能力" style={{ width: 190 }} options={CAP_OPTIONS} onChange={(v) => setFilters((f) => ({ ...f, capability: v ?? '' }))} />
+          <Select allowClear value={filters.registrySource||undefined} placeholder="仓库来源" style={{ width: 150 }} options={[{ value: 'platform', label: '平台镜像仓库' }, { value: 'third_party', label: '第三方仓库' }]} onChange={(v) => setFilters((f) => ({ ...f, registrySource: v ?? '' }))} />
+          <Select allowClear value={filters.scope||undefined} placeholder="来源" style={{ width: 130 }} options={[{ value: 'builtin', label: '内置' }, { value: 'custom', label: '自定义' }]} onChange={(v) => setFilters((f) => ({ ...f, scope: v ?? '' }))} />
           <Text type="secondary">共 {filtered.length} 个应用</Text>
         </Space>
       </Card>
       {filtered.length ? (
         <div style={{ maxHeight: 'calc(100vh - 270px)', minHeight: 360, overflowY: 'auto', padding: '2px 4px 12px' }}
           onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 160) setVisibleCount((n) => Math.min(n + 8, filtered.length)) }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
+          <div className="app-grid">
           {visibleApps.map((a) => {
-            const artwork = CAP_BACKGROUND[a.capability] ?? CAP_BACKGROUND.custom
+            const artwork = { accent: 'var(--accent)' }
             return (
             <Card key={a.id} hoverable size="small" styles={{ body: { padding: 0 } }} style={{ minWidth: 0, overflow: 'hidden' }}>
-              <div style={{ height: 92, padding: '14px 16px', color: '#1f2937', background: artwork.background, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ height: 92, padding: '14px 16px', color: 'var(--text)', background: 'var(--soft)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', width: 94, height: 94, borderRadius: '50%', background: 'rgba(255,255,255,.56)', left: -34, top: -48 }} />
                 <div style={{ position: 'absolute', width: 58, height: 58, borderRadius: 16, border: '13px solid rgba(255,255,255,.52)', transform: 'rotate(32deg)', right: -22, bottom: -28 }} />
                 <div style={{ position: 'absolute', width: 6, height: 48, borderRadius: 4, background: artwork.accent, right: 66, bottom: -9, transform: 'rotate(24deg)' }} />
                 <div style={{ position: 'relative', fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 50 }}>{a.display_name}</div>
-                <div style={{ position: 'relative', color: '#64748b', fontSize: 12, marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{CAP_TAG[a.capability]?.text ?? a.capability}</div>
+                <div style={{ position: 'relative', color: 'var(--muted)', fontSize: 12, marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{CAP_TAG[a.capability]?.text ?? a.capability}</div>
                 <Tag style={{ position: 'absolute', right: 10, top: 12, margin: 0 }} color={STATUS_TAG[a.status]?.color}>{STATUS_TAG[a.status]?.text ?? a.status}</Tag>
               </div>
               <div style={{ padding: 14 }}>
@@ -306,12 +298,12 @@ export default function AppImages() {
             </Card>
           )})}
           </div>
-          {visibleCount < filtered.length && <div style={{ textAlign: 'center', color: '#8c8c8c', padding: 14 }}>继续向下滚动加载更多</div>}
+          {visibleCount < filtered.length && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>继续向下滚动加载更多</div>}
         </div>
       ) : <Empty description={list.isLoading ? '加载中' : '没有符合条件的应用'} />}
 
       {/* 登记应用 */}
-      <Drawer title="登记应用" open={createOpen} width={860} onClose={() => setCreateOpen(false)} destroyOnClose
+      <EditorPage loading={Boolean(editorId&&list.isLoading)} error={Boolean(editorId&&!list.isLoading&&(!editing||editing.scope!=='custom'||(!isOperator&&editing.created_by!==user?.username)))} title={editing?"编辑计算应用":"登记计算应用"} open={createOpen} width={860} onClose={() => setCreateOpen(false)} destroyOnClose
         extra={<Space><Button onClick={() => setCreateOpen(false)}>取消</Button>{createStep > 0 && <Button onClick={() => setCreateStep((step) => step - 1)}>上一步</Button>}{createStep < 3 ? <Button type="primary" onClick={nextCreateStep}>下一步</Button> : <Button type="primary" loading={registerMut.isPending || updateMut.isPending} onClick={() => form.submit()}>{editing ? '保存' : '登记'}</Button>}</Space>}>
         <Steps current={createStep} size="small" style={{ marginBottom: 24 }} items={[
           { title: '基本信息' }, { title: '角色与 I/O' }, { title: '云部署与任务配置' }, { title: '生成结果与约束' },
@@ -319,27 +311,28 @@ export default function AppImages() {
         <Form form={form} layout="vertical" onFinish={onFinish}
           initialValues={{ capability: 'mpc', operations: ['process'], registry_source: 'platform', deploy_templates: DEFAULT_DEPLOY_TEMPLATES }}>
           <div style={{ display: createStep === 0 ? 'block' : 'none' }}>
+          <Alert type="info" showIcon message="填写应用的展示信息和能力声明" style={{ marginBottom: 16 }} />
           <Form.Item name="display_name" label="应用名称" rules={[{ required: true }]}><Input placeholder="应用对外展示名称" /></Form.Item>
-          <Form.Item name="name" label="Kuscia AppImage 标识（选填）" extra="需与已有 KusciaJob 的 appImage 一致；留空时由平台生成"><Input placeholder="如：risk-analysis-image" /></Form.Item>
+          <Form.Item name="name" label="应用镜像技术标识（选填）" extra="需与已有 KusciaJob 的 appImage 一致；留空时由平台生成"><Input placeholder="如：risk-analysis-image" /></Form.Item>
           <Form.Item name="capability" label="应用能力" rules={[{ required: true }]}><Select options={CAP_OPTIONS} /></Form.Item>
           <Form.Item name="operations" label="操作属性" extra="运行时校验这些操作须全部在合约授权范围内"><Select mode="multiple" options={ACTION_OPTIONS} /></Form.Item>
           <Form.Item name="uc_capabilities" label="使用控制能力"><Select mode="multiple" options={UC_CAP_OPTIONS} /></Form.Item>
           <Form.Item name="description" label="描述"><Input.TextArea rows={3} /></Form.Item>
           </div>
           <div style={{ display: createStep === 2 ? 'block' : 'none' }}>
-          <Alert type="info" showIcon message="云部署与任务配置" description="可导入 AppImage 文件自动填充，也可以分别配置镜像、部署模板和配置模板。" />
+          <Alert type="info" showIcon message="云部署与任务配置" description="可导入应用镜像文件自动填充，也可以分别配置镜像、部署模板和配置模板。" />
           <Upload accept=".yaml,.yml,.json,application/json,text/yaml" maxCount={1} showUploadList={false} beforeUpload={importFile}>
-            <Button icon={<UploadOutlined />} style={{ margin: '12px 0 20px' }}>导入 AppImage YAML/JSON</Button>
+            <Button icon={<UploadOutlined />} style={{ margin: '12px 0 20px' }}>导入应用镜像 YAML/JSON</Button>
           </Upload>
           <Tabs items={[
             { key: 'image', label: '镜像源', children: <>
-              <Form.Item name="registry_source" label="镜像仓库来源" rules={[{ required: true }]}><Select options={[{ value: 'platform', label: '平台 Harbor（10.26.174.75:30002/bonfire）' }, { value: 'third_party', label: '第三方 OCI/Docker 仓库' }]} /></Form.Item>
+              <Form.Item name="registry_source" label="镜像仓库来源" rules={[{ required: true }]}><Select options={[{ value: 'platform', label: '平台镜像仓库' }, { value: 'third_party', label: '第三方 OCI/Docker 仓库' }]} /></Form.Item>
               {registrySource === 'third_party' && <Form.Item name="registry" label="第三方仓库地址（选填）"><Input placeholder="如：registry.example.com" /></Form.Item>}
               <Form.Item name="image_name" label={registrySource === 'platform' ? '平台项目内仓库名' : '完整镜像名称'} rules={[{ required: true }]}><Input placeholder={registrySource === 'platform' ? '如：psi-demo' : '如：garbledoak/bonfire'} /></Form.Item>
               <Form.Item name="image_tag" label="镜像标签" rules={[{ required: true }]}><Input placeholder="如：latest" /></Form.Item>
             </> },
             { key: 'deploy', label: '部署模板', children: <Form.Item name="deploy_templates" rules={[{ required: true, message: '请配置部署模板' }]}><DeployTemplateEditor onChange={(value) => form.setFieldValue('deploy_templates', value)} /></Form.Item> },
-            { key: 'config', label: '配置模板', children: <Form.Item name="config_templates"><JsonEditor rows={12} onChange={(text) => form.setFieldValue('config_templates', text)} placeholder={'{\n  "task-config.conf": "{{.TASK_ID}}"\n}'} /></Form.Item> },
+            { key: 'config', label: '配置模板', children: <Form.Item name="config_templates" extra="配置文件名和值将原样保留"><JsonEditor rows={12} onChange={(text) => form.setFieldValue('config_templates', text)} placeholder={'{\n  "task-config.conf": "{{.TASK_ID}}"\n}'} /></Form.Item> },
             { key: 'task', label: '任务配置', children: <>
               <Alert type="info" showIcon style={{ marginBottom: 12 }} message="taskInputConfig 模板" description="平台会在 Workflow 运行时注入 DomainData 和参数。" />
               <Form.Item name="task_input_template" label="模板（JSON）" extra="inputs.<端口>.*、outputs.<端口>.*、parameters.<参数名>">
@@ -352,27 +345,28 @@ export default function AppImages() {
           <div style={{ display: createStep === 1 ? 'block' : 'none' }}>
           <Alert type="info" showIcon style={{ marginBottom: 16 }} message="声明 Workflow 如何配置该应用" description="输入输出决定 DomainData 选择器；应用参数决定项目用户需要填写的动态表单。" />
           <Tabs items={[
-            { key: 'roles', label: '参与方角色', children: <RoleSchemaEditor value={partySchema} onChange={setPartySchema} /> },
+            { key: 'roles', label: '参与方角色', children: <><Form.Item label="支持的计算架构" required extra="仅声明镜像实际支持的架构；未声明的历史镜像默认仅支持 CS。此声明不会改造镜像协议。"><Select aria-label="镜像支持的计算架构" mode="multiple" value={partySchema.architectures||['cs']} options={[{value:'cs',label:'CS 模式'},{value:'outsourced',label:'外包计算模式'}]} onChange={architectures=>setPartySchema({...partySchema,architectures:architectures as ('cs'|'outsourced')[]})}/></Form.Item><RoleSchemaEditor value={partySchema} onChange={setPartySchema} /></> },
             { key: 'io', label: '输入输出', children: <IoSchemaEditor value={ioSchema} roles={partySchema.roles} onChange={setIoSchema} /> },
             { key: 'parameters', label: '应用参数', children: <><Alert type="info" showIcon style={{ marginBottom: 12 }} message="这些字段会在 Workflow 节点中生成动态表单，并通过 parameters.<参数名> 注入模板。" /><ParameterSchemaEditor value={parameterSchemas} onChange={setParameterSchemas} /></> },
             { key: 'advanced', label: '高级 JSON', children: <Space direction="vertical" style={{ width: '100%' }}><Alert type="warning" showIcon message="高级模式会覆盖角色、I/O 和参数定义；点击“应用到表单”后生效。" /><Input.TextArea rows={16} value={advancedSchemaText} onChange={(e) => setAdvancedSchemaText(e.target.value)} style={{ fontFamily: 'monospace' }} /><Button onClick={() => { try { const parsed = JSON.parse(advancedSchemaText); setPartySchema(parsed.party_schema ?? { roles: [] }); setIoSchema(parsed.io_schema ?? { inputs: [], outputs: [] }); setParameterSchemas({ parameterSchema: parsed.parameter_schema ?? { type: 'object', properties: {} }, uiSchema: parsed.ui_schema ?? {} }); message.success('高级 JSON 已应用') } catch (e: any) { message.error(`高级 JSON 解析失败：${e.message}`) } }}>应用到表单</Button></Space> },
           ]} onChange={(key) => { if (key === 'advanced') setAdvancedSchemaText(JSON.stringify({ party_schema: partySchema, io_schema: ioSchema, parameter_schema: parameterSchemas.parameterSchema, ui_schema: parameterSchemas.uiSchema }, null, 2)) }} />
           </div>
           <div style={{ display: createStep === 3 ? 'block' : 'none' }}>
-            <Divider orientation="left">生成的 AppImage YAML 结构</Divider>
+            <Alert type="success" showIcon message="应用镜像生成结果" description="以下内容将作为应用登记请求提交；平台约束来自前面声明的角色、I/O Schema 和参数 Schema。" />
+            <Divider orientation="left">生成的应用镜像 YAML 结构</Divider>
             <JsonViewer value={{ apiVersion: 'kuscia.secretflow/v1alpha1', kind: 'AppImage', metadata: { name: form.getFieldValue('name') || '(平台自动生成)' }, spec: { image: { name: form.getFieldValue('image_name'), tag: form.getFieldValue('image_tag') }, deployTemplates: form.getFieldValue('deploy_templates'), configTemplates: form.getFieldValue('config_templates') || {} } }} collapsed={1} />
             <Divider orientation="left">平台约束</Divider>
-            <JsonViewer value={{ party_schema: partySchema, io_schema: ioSchema, parameter_schema: parameterSchemas.parameterSchema, ui_schema: parameterSchemas.uiSchema, task_input_template: form.getFieldValue('task_input_template') ? JSON.parse(form.getFieldValue('task_input_template')) : null }} collapsed={2} />
+            <JsonViewer value={{ party_schema: partySchema, io_schema: ioSchema, parameter_schema: parameterSchemas.parameterSchema, ui_schema: parameterSchemas.uiSchema, task_input_template: form.getFieldValue('task_input_template') || null }} collapsed={2} />
           </div>
         </Form>
-      </Drawer>
+      </EditorPage>
 
       {/* 详情 */}
-      <Drawer title={`应用详情：${detail?.display_name ?? ''}`} open={!!detail} width={640}
+      <DetailPage loading={list.isLoading} error={list.isError} title={`应用详情：${detail?.display_name ?? ''}`} open={!!detail} width={1040}
         onClose={() => setDetail(null)} destroyOnClose>
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size={16}>
-            <Descriptions column={1} bordered size="small">
+            <BusinessDetails groups={[{title:'应用信息与能力',labels:['应用名称','标识','描述','状态','能力','操作属性','使用控制能力']},{title:'镜像与发布信息',labels:['镜像','仓库来源','仓库地址','来源','登记方','创建时间','更新时间','操作']}]} column={1} bordered size="small">
               <Descriptions.Item label="应用名称">{detail.display_name}</Descriptions.Item>
               <Descriptions.Item label="标识"><Text code>{detail.name}</Text></Descriptions.Item>
               <Descriptions.Item label="描述">{detail.description || '—'}</Descriptions.Item>
@@ -396,24 +390,18 @@ export default function AppImages() {
               <Descriptions.Item label="创建时间">{detail.created_at}</Descriptions.Item>
               <Descriptions.Item label="更新时间">{detail.updated_at}</Descriptions.Item>
               {detail.scope === 'custom' && detail.status === 'registered' && (isOperator || detail.created_by === user?.username) && <Descriptions.Item label="操作"><Button type="primary" onClick={() => openEdit(detail)}>编辑应用信息</Button></Descriptions.Item>}
-            </Descriptions>
-            <div>
-              <Text strong>部署模板 (deploy_templates)</Text>
-              <div style={{ marginTop: 8 }}><JsonViewer value={detail.deploy_templates} /></div>
+            </BusinessDetails>
+            <div className="center-form-columns">
+              <section className="center-form-panel"><h3>支持的计算架构</h3>{(detail.party_schema?.architectures||['cs']).map(mode=><Tag key={mode}>{mode==='outsourced'?'外包计算':'CS 模式'}</Tag>)}<h3>参与方与角色</h3>{(detail.party_schema?.roles||[]).map((role,index)=><p key={index}>{typeof role==='string'?role:`${role.title||role.name} · ${role.min??0} 至 ${role.max??'不限'} 方`}</p>)}{!detail.party_schema?.roles?.length&&<Text type="secondary">未声明角色</Text>}<h3>应用参数</h3>{Object.entries(detail.parameter_schema?.properties||{}).map(([key,value])=><p key={key}><Text strong>{(value as any).title||key}</Text> · {(value as any).type||'未声明类型'}</p>)}</section>
+              <section className="center-form-panel"><h3>输入数据</h3>{(detail.io_schema?.inputs||[]).map(port=><p key={port.name}><Text strong>{port.name}</Text> · {port.kind}<br/><Text type="secondary">格式：{port.formats?.join('、')||'不限'}</Text></p>)}{!detail.io_schema?.inputs?.length&&<Text type="secondary">无输入端口</Text>}<h3>输出结果</h3>{(detail.io_schema?.outputs||[]).map(port=><p key={port.name}><Text strong>{port.name}</Text> · {port.kind}</p>)}{!detail.io_schema?.outputs?.length&&<Text type="secondary">无输出端口</Text>}</section>
             </div>
-            <div>
-              <Text strong>配置模板 (config_templates)</Text>
-              <div style={{ marginTop: 8 }}>{detail.config_templates ? <JsonViewer value={detail.config_templates} /> : '—'}</div>
-            </div>
-            <div>
-              <Text strong>作业模板 (job_template)</Text>
-              <div style={{ marginTop: 8 }}>{detail.job_template ? <JsonViewer value={detail.job_template} /> : '—'}</div>
-            </div>
-            <div><Text strong>编排 I/O 契约 (io_schema)</Text><div style={{ marginTop: 8 }}>{detail.io_schema ? <JsonViewer value={detail.io_schema} /> : '—'}</div></div>
-            <div><Text strong>taskInputConfig 模板</Text><div style={{ marginTop: 8 }}>{detail.task_input_template ? <JsonViewer value={detail.task_input_template} /> : '—'}</div></div>
+            <Collapse items={[
+              {key:'deployment',label:'部署与配置模板',children:<div className="center-form-columns"><section><h3>部署模板</h3><JsonViewer value={detail.deploy_templates}/></section><section><h3>配置文件</h3><JsonViewer value={detail.config_templates}/></section></div>},
+              {key:'execution',label:'任务配置与完整编排契约',children:<div className="center-form-columns"><section><h3>任务输入模板</h3><JsonViewer value={detail.task_input_template}/><h3>作业模板</h3><JsonViewer value={detail.job_template}/></section><section><h3>角色、端口与参数契约</h3><JsonViewer value={{roles:detail.party_schema,io:detail.io_schema,parameters:detail.parameter_schema,ui:detail.ui_schema}}/></section></div>},
+            ]}/>
           </Space>
         )}
-      </Drawer>
-    </Card>
+      </DetailPage>
+    </RouteSurface>
   )
 }

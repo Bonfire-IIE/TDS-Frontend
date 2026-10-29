@@ -75,13 +75,13 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
   const remove = (idx: number) => update(value.filter((_, i) => i !== idx))
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
+    <div className="policy-editor">
       {value.length === 0 && <Empty description="暂无策略，点击下方添加" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
       {value.map((row, idx) => {
         const tw = row.constraints?.time_window
         return (
-          <Card key={idx} size="small" style={{ background: '#fafafa' }}
-            extra={<Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(idx)} />}>
+          <Card key={idx} size="small" style={{ background: 'var(--canvas)' }}
+            extra={<Button type="text" danger size="small" aria-label="删除策略" icon={<DeleteOutlined />} onClick={() => remove(idx)} />}>
             <Space direction="vertical" style={{ width: '100%' }} size={8}>
               <Space wrap>
                 <Select
@@ -93,7 +93,7 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
                 <Select
                   mode="multiple"
                   allowClear
-                  style={{ minWidth: 260 }}
+                  style={{ width: 260, maxWidth: '100%' }}
                   placeholder="执行义务"
                   value={row.obligations ?? []}
                   options={OBLIGATION_OPTIONS}
@@ -101,7 +101,7 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
                 />
                 <Select
                   mode="multiple"
-                  style={{ minWidth: 320 }}
+                  style={{ width: 320, maxWidth: '100%' }}
                   placeholder="选择操作（可多选）"
                   value={row.actions}
                   options={ACTION_OPTIONS}
@@ -111,6 +111,7 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
               <Space wrap>
                 <Text type="secondary" style={{ fontSize: 12 }}>约束</Text>
                 <RangePicker
+                  style={{width: '100%', minWidth: 0}}
                   showTime
                   placeholder={['生效', '失效']}
                   value={tw ? [dayjs(tw.from), dayjs(tw.to)] : null}
@@ -143,7 +144,7 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
         )
       })}
       <Button type="dashed" block icon={<PlusOutlined />} onClick={add}>添加策略</Button>
-    </Space>
+    </div>
   )
 }
 
@@ -151,16 +152,16 @@ export default function PolicyEditor({ value = [], onChange }: Props) {
 export function PolicyView({ policies }: { policies: Policy[] }) {
   if (!policies || policies.length === 0) return <Empty description="无策略" image={Empty.PRESENTED_IMAGE_SIMPLE} />
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
+    <div className="policy-editor">
       {policies.map((p, idx) => {
         const tw = p.constraints?.time_window
         return (
-          <Card key={idx} size="small" style={{ background: '#fafafa' }}>
+          <Card key={idx} size="small" style={{ background: 'var(--canvas)' }}>
             <Space wrap>
               <Tag color={p.type === 'allow' ? 'blue' : 'red'}>{p.type === 'allow' ? '允许' : '禁止'}</Tag>
               {p.actions.map((a) => <Tag key={a}>{ACTION_LABELS[a] ?? a}</Tag>)}
             </Space>
-            <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
+            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)' }}>
               {tw && <span>时间窗口：{dayjs(tw.from).format('YYYY-MM-DD HH:mm')} ~ {dayjs(tw.to).format('YYYY-MM-DD HH:mm')}　</span>}
               {p.constraints?.count != null && <span>次数上限：{p.constraints.count}　</span>}
               {p.constraints?.exec_env && <span>执行环境：{EXEC_ENV_LABELS[p.constraints.exec_env] ?? p.constraints.exec_env}</span>}
@@ -170,6 +171,6 @@ export function PolicyView({ policies }: { policies: Policy[] }) {
           </Card>
         )
       })}
-    </Space>
+    </div>
   )
 }

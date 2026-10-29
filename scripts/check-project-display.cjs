@@ -1,0 +1,13 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),ts=require('typescript'),vm=require('node:vm');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../src/utils/projectDisplay.ts'),'utf8'),box={exports:{}};
+vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,box);
+const {projectDisplay,stateLabel,valueLabel}=box.exports;
+const old={display_name:'旧版计算组件',party_schema:{roles:[{name:'p0',title:'模型持有方'}]},io_schema:{outputs:[{name:'out',title:'旧版结果'}]},parameter_schema:{properties:{flag:{title:'包含列名',type:'boolean'}}}};
+const node={id:'task-1',app_image:'image',template_version:'v1',template_task:'task'},workflow={nodes:[node]};
+const templates=[{name:'工具',versions:[{id:'v2',definition:{tasks:[{id:'task',alias:'新版任务'}],appimage_snapshots:{image:{...old,display_name:'新版计算组件'}}}},{id:'v1',definition:{tasks:[{id:'task',alias:'旧版任务'}],appimage_snapshots:{image:old}}}]}];
+const display=projectDisplay({workflow,templates,images:[{name:'image',display_name:'实时定义'}],domains:[{domain_id:'d',connector_id:'c',connector_name:'数据持有方'}],resources:[{domain_id:'d',connector_id:'c',domaindata_id:'r',name:'客户数据'}]});
+assert.equal(display.taskName('task-1'),'旧版任务');assert.equal(display.image(node).display_name,'旧版计算组件');assert.equal(display.roleName(node,'p0'),'模型持有方');assert.equal(display.portName(node,'out',false),'旧版结果');assert.equal(display.resource('d','r').name,'客户数据');assert.equal(display.connectorName('d'),'数据持有方');
+assert.equal(display.taskName({...node,alias:'用户自定义名称'}),'用户自定义名称');
+assert.equal(display.image({...node,template_version:'missing'}),undefined);
+assert.equal(stateLabel('Succeeded'),'已完成');assert.equal(stateLabel('unexpected-engine-state'),'待核对');assert.equal(valueLabel(true),'开启');assert.equal(valueLabel('MiniONN',{enum_labels:{MiniONN:'手写数字识别模型'}}),'手写数字识别模型');
+assert.equal(node.template_version,'v1');console.log('Project display: pinned snapshots, user aliases, resource/connector/role/port labels and enum values passed.');

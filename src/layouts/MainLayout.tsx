@@ -1,25 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Layout, Menu, Dropdown, Avatar, Space, Spin, Tag } from 'antd'
+import { Layout, Menu, Dropdown, Avatar, Space, Tag } from 'antd'
 import type { MenuProps } from 'antd'
 import {
-  CloudServerOutlined,
-  DashboardOutlined,
-  ApiOutlined,
-  DatabaseOutlined,
-  FileProtectOutlined,
-  FileTextOutlined,
-  SnippetsOutlined,
-  ShoppingOutlined,
-  ProjectOutlined,
-  AppstoreOutlined,
   UserOutlined,
-  SafetyCertificateOutlined,
-  AuditOutlined,
   LogoutOutlined,
+  FireOutlined,
+  LeftOutlined,
 } from '@ant-design/icons'
 import { useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { getKusciaMasterConfig } from '../api/kuscia'
 
 const { Header, Sider, Content } = Layout
 
@@ -32,107 +21,54 @@ const ROLE_LABELS: Record<string, string> = {
   supervisor: '监管方',
 }
 
-function menuItems(isAdmin: boolean): MenuProps['items'] {
+function menuItems(isOperator: boolean): MenuProps['items'] {
   return [
-  {
-    key: 'overview',
-    icon: <DashboardOutlined />,
-    label: '运行概览',
-    children: [
-      ...(isAdmin ? [{ key: '/cluster', icon: <CloudServerOutlined />, label: '集群状态' }] : []),
-      { key: '/connectors', icon: <ApiOutlined />, label: '连接器' },
-      ...(isAdmin ? [
-        { key: '/kuscia-master', icon: <CloudServerOutlined />, label: '控制节点' },
-        { key: '/kuscia-logs', icon: <FileTextOutlined />, label: '控制日志' },
-      ] : []),
-    ],
-  },
-  {
-    key: 'data-catalog',
-    icon: <DatabaseOutlined />,
-    label: '数据目录',
-    children: [
-      { key: '/catalog', icon: <DatabaseOutlined />, label: '数据资源' },
-      { key: '/products', icon: <ShoppingOutlined />, label: '数据产品' },
-    ],
-  },
-  {
-    key: 'digital-contracts',
-    icon: <FileProtectOutlined />,
-    label: '数字合约',
-    children: [
-      { key: '/contracts', icon: <FileProtectOutlined />, label: '数字合约' },
-      { key: '/contract-templates', icon: <SnippetsOutlined />, label: '合约模板' },
-    ],
-  },
-  {
-    key: 'project-management',
-    icon: <ProjectOutlined />,
-    label: '项目管理',
-    children: [
-      { key: '/projects', icon: <ProjectOutlined />, label: '项目管理' },
-      { key: '/project-templates', icon: <SnippetsOutlined />, label: '项目模板' },
-    ],
-  },
-  {
-    key: 'application-management',
-    icon: <AppstoreOutlined />,
-    label: '应用管理',
-    children: [
-      { key: '/appimages', icon: <AppstoreOutlined />, label: 'AppImage' },
-    ],
-  },
-  {
-    key: 'governance',
-    icon: <AuditOutlined />,
-    label: '治理审计',
-    children: [
-      { key: '/usage', icon: <SafetyCertificateOutlined />, label: '使用控制记录' },
-      { key: '/audit', icon: <AuditOutlined />, label: '审计存证' },
-    ],
-  },
+    {key:'/workspace',label:'工作台'},
+    {key:'data-catalog',label:'数据协作',children:[{key:'/catalog',label:'数据资源'},{key:'/products',label:'数据产品'},{key:'/contracts',label:'数字合约'}]},
+    {key:'privacy-computing',label:'计算协作',children:[{key:'/privacy-computing',label:'计算项目'},{key:'/applications',label:'应用模板'},{key:'/appimages',label:'应用镜像'}]},
+    {key:'overview',label:'接入与配置',children:[{key:'/connectors',label:'连接器'},{key:'/contract-templates',label:'合约模板'},...(isOperator?[{key:'/execution-identities',label:'执行主体身份'}]:[])]},
+    {key:'governance',label:'治理与追踪',children:[{key:'/usage',label:'使用控制'},{key:'/audit',label:'审计存证'}]},
   ]
 }
 
 const routeMenus: Array<{ path: string; parent?: string; selectedPath?: string }> = [
-  { path: '/cluster', parent: 'overview' },
+  { path: '/workspace' },
   { path: '/connectors', parent: 'overview' },
-  { path: '/kuscia-master', parent: 'overview' },
-  { path: '/kuscia-logs', parent: 'overview' },
+  { path: '/execution-identities', parent: 'overview' },
   { path: '/catalog', parent: 'data-catalog' },
   { path: '/products', parent: 'data-catalog' },
-  { path: '/appimages', parent: 'application-management' },
-  { path: '/contracts', parent: 'digital-contracts' },
-  { path: '/contract-templates', parent: 'digital-contracts' },
-  { path: '/projects', parent: 'project-management' },
-  { path: '/project-templates', parent: 'project-management' },
-  { path: '/jobs', selectedPath: '/projects' },
+  { path: '/contracts', parent: 'data-catalog' },
+  { path: '/contract-templates', parent: 'overview' },
+  { path: '/privacy-computing', parent: 'privacy-computing' },
+  { path: '/applications', parent: 'privacy-computing' },
+  { path: '/appimages', parent: 'privacy-computing' },
   { path: '/usage', parent: 'governance' },
   { path: '/audit', parent: 'governance' },
 ]
 
 const PAGE_TITLES: Record<string, string> = {
-  '/cluster': '集群状态', '/connectors': '连接器', '/kuscia-master': '控制节点',
-  '/kuscia-logs': '控制日志', '/catalog': '数据资源', '/products': '数据产品',
-  '/contracts': '数字合约', '/contract-templates': '合约模板', '/projects': '项目管理', '/project-templates': '项目模板',
-  '/jobs': '项目管理', '/appimages': 'AppImage', '/usage': '使用控制记录', '/audit': '审计存证',
+  '/execution-identities':'执行主体身份', '/workspace': '工作台', '/connectors': '连接器', '/catalog': '数据资源', '/products': '数据产品',
+  '/contracts': '数字合约', '/contract-templates': '合约模板', '/privacy-computing': '隐私保护计算', '/applications': '应用', '/appimages': '应用镜像',
+  '/usage': '使用控制记录', '/audit': '审计存证',
 }
 
 export default function MainLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
-  const isAdmin = Boolean(user?.roles?.some((role) => role === 'operator' || role === 'supervisor'))
   const activeMenu = useMemo(
     () => routeMenus.find(({ path }) => location.pathname === path || location.pathname.startsWith(`${path}/`)),
     [location.pathname],
   )
   const activeParent = activeMenu?.parent
-  const [openKeys, setOpenKeys] = useState<string[]>(() =>
-    activeMenu?.parent ? [activeMenu.parent] : ['overview'],
-  )
-  const [checkingMaster, setCheckingMaster] = useState(true)
+  const [openKeys, setOpenKeys] = useState<string[]>(['data-catalog', 'privacy-computing', 'overview', 'governance'])
+  const workflowPage = new URLSearchParams(location.search).get('tab') === 'workflow'
+  const [collapsed,setCollapsed]=useState(workflowPage || window.innerWidth < 992)
+  useEffect(()=>{if(workflowPage)setCollapsed(true)},[workflowPage])
+  useEffect(()=>{const change=(event:Event)=>{if((event as CustomEvent).detail)setCollapsed(true)};window.addEventListener('workflow-editor-active',change);return ()=>window.removeEventListener('workflow-editor-active',change)},[])
   const pageTitle = PAGE_TITLES[activeMenu?.path ?? ''] ?? '可信数据空间'
+  const workspacePage = location.pathname === '/workspace'
+  const computingPage = ['/privacy-computing', '/applications', '/appimages'].some(path => location.pathname === path || location.pathname.startsWith(`${path}/`))
 
   useEffect(() => {
     if (activeParent) {
@@ -140,47 +76,28 @@ export default function MainLayout() {
     }
   }, [activeParent])
 
-  useEffect(() => {
-    if (location.pathname === '/kuscia-master' || location.pathname.startsWith('/setup/') || location.pathname === '/login' || location.pathname === '/register') {
-      setCheckingMaster(false)
-      return
-    }
-    if (!user?.roles?.some((role) => role === 'operator' || role === 'supervisor')) {
-      setCheckingMaster(false)
-      return
-    }
-    setCheckingMaster(true)
-    getKusciaMasterConfig()
-      .then((config) => {
-        // 仅在完全没有 Master 记录时进入可选引导。已有记录即由中心平台独立管理，
-        // 即使探活失败也不会被引导页劫持或形成重定向循环。
-        if (!config) navigate('/setup/kuscia-master', { replace: true })
-      })
-      .catch(() => undefined)
-      .finally(() => setCheckingMaster(false))
-  }, [location.pathname, navigate, user?.roles])
-
-  if (checkingMaster) {
-    return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><Spin size="large" tip="正在检测 Kuscia Master 配置…" /></div>
-  }
-
   return (
-    <Layout className="app-shell" style={{ minHeight: '100vh' }}>
-      <Sider className="app-sider" theme="dark" width={232} collapsedWidth={76} breakpoint="lg" collapsible>
-        <div className="brand">
-          <span className="brand-copy">🔥</span>
-          <span className="brand-copy"><big>Bonfire-TDS</big></span>
+    <Layout className={`app-shell${workspacePage ? ' workspace-shell' : ''}`} style={{ minHeight: '100dvh' }}>
+      <a className="skip-link" href="#main-content">跳转到主要内容</a>
+      {!collapsed && <button type="button" className="sidebar-backdrop" aria-label="关闭全局导航" onClick={()=>setCollapsed(true)} />}
+      {collapsed && <button type="button" className="sidebar-reopen" aria-label="恢复全局导航" aria-expanded={false} aria-controls="global-sidebar" title="展开侧边栏" onClick={()=>setCollapsed(false)}><span aria-hidden="true" /></button>}
+      <Sider id="global-sidebar" className="app-sider" theme="light" width={248} collapsedWidth={0} breakpoint="lg" trigger={null} collapsed={collapsed} onBreakpoint={broken=>{if(broken)setCollapsed(true)}}>
+        {!collapsed&&<><div className="brand">
+          <span className="brand-mark" aria-hidden="true"><FireOutlined /></span>
+          <span className="brand-copy">中心平台<small>Bonfire-TDS</small></span>
         </div>
         <Menu
           className="app-menu"
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={activeMenu ? [activeMenu.selectedPath ?? activeMenu.path] : []}
           openKeys={openKeys}
           onOpenChange={(keys) => setOpenKeys(keys)}
-          items={menuItems(isAdmin)}
-          onClick={({ key }) => navigate(key)}
+          items={menuItems(Boolean(user?.roles.includes('operator')))}
+          onClick={({ key }) => {navigate(key);if(window.innerWidth<992)setCollapsed(true)}}
         />
+        <button className="sidebar-collapse" type="button" aria-label="收起全局导航" aria-expanded={true} aria-controls="global-sidebar" onClick={()=>setCollapsed(true)}><LeftOutlined aria-hidden="true" /><span>收起侧边栏</span></button>
+        </>}
       </Sider>
       <Layout>
         <Header className="app-header">
@@ -193,18 +110,18 @@ export default function MainLayout() {
               items: [{ key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout }],
             }}
           >
-            <Space className="header-user" style={{ fontSize: 14, fontWeight: 400 }}>
-              <Avatar size={30} icon={<UserOutlined />} style={{ background: '#283654' }} />
+            <button className="header-user" type="button" aria-label="账户菜单"><Space>
+              <Avatar size={30} icon={<UserOutlined />} style={{ background: 'var(--text)', color: 'var(--surface)' }} />
               {user?.name || user?.username}
               {user?.roles?.map((r) => (
                 <Tag key={r} color="blue">
                   {ROLE_LABELS[r] ?? r}
                 </Tag>
               ))}
-            </Space>
+            </Space></button>
           </Dropdown>
         </Header>
-        <Content className="content-canvas">
+        <Content className={`content-canvas${computingPage ? ' computation-content' : ''}${workspacePage ? ' workspace-content' : ''}`} id="main-content" tabIndex={-1}>
           <Outlet />
         </Content>
       </Layout>

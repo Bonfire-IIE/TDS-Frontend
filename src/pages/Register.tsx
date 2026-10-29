@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Card, Form, Input, Button, message, Typography } from 'antd'
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
+import { FireOutlined, UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { register } from '../api/client'
 
@@ -36,7 +36,7 @@ export default function Register() {
     <div className="auth-page">
       <Card className="auth-card">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div className="auth-brand">🔥</div>
+          <div className="auth-brand" aria-hidden="true"><FireOutlined /></div>
           <Title level={3} style={{ marginBottom: 4 }}>
             Bonfire-TDS
           </Title>
@@ -44,10 +44,10 @@ export default function Register() {
         </div>
         <Form onFinish={onFinish} size="large">
           <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input prefix={<UserOutlined />} placeholder="用户名" />
+            <Input prefix={<UserOutlined />} placeholder="用户名" autoComplete="username" aria-label="用户名" />
           </Form.Item>
           <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码" autoComplete="new-password" aria-label="密码" />
           </Form.Item>
           <Form.Item
             name="confirm"

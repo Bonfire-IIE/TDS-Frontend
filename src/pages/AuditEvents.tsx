@@ -1,5 +1,7 @@
+import { Link, useSearchParams } from 'react-router-dom'
+import BusinessDetails from '../components/BusinessDetails'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Drawer, Input, Space, Switch, Table, Tag, Typography } from 'antd'
+import { Alert, Collapse, Button, Card, Descriptions, Drawer, Input, Space, Switch, Table, Tag, Typography } from 'antd'
 import { ReloadOutlined, SafetyCertificateOutlined, SearchOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { SigmaContainer, useLoadGraph, useRegisterEvents, useSigma } from '@react-sigma/core'
@@ -129,9 +131,10 @@ function AuditNetwork({ events, selectedId, focusedStream, highlightFailures, on
 }
 
 export default function AuditEvents() {
-  const [contractInput, setContractInput] = useState('')
-  const [projectInput, setProjectInput] = useState('')
-  const [query, setQuery] = useState<AuditEventQuery>({})
+  const [params,setParams]=useSearchParams()
+  const [contractInput, setContractInput] = useState(params.get('contract')||'')
+  const [projectInput, setProjectInput] = useState(params.get('project')||'')
+  const [query, setQuery] = useState<AuditEventQuery>({contract_id:params.get('contract')||undefined,project_id:params.get('project')||undefined})
   const [highlightFailures, setHighlightFailures] = useState(false)
   const [selected, setSelected] = useState<AuditEventItem | null>(null)
   const [focusedStream, setFocusedStream] = useState<string | null>(null)
@@ -160,6 +163,7 @@ export default function AuditEvents() {
   const applySearch = useCallback(() => {
     setSelected(null)
     setFocusedStream(null)
+    setParams({...(contractInput.trim()?{contract:contractInput.trim()}:{}),...(projectInput.trim()?{project:projectInput.trim()}:{})})
     setQuery({
       contract_id: contractInput.trim() || undefined,
       project_id: projectInput.trim() || undefined,
@@ -168,7 +172,7 @@ export default function AuditEvents() {
   const resetFilters = useCallback(() => {
     setContractInput('')
     setProjectInput('')
-    setQuery({})
+    setQuery({});setParams({})
     clearFocus()
   }, [clearFocus])
   const refreshAll = useCallback(() => {
@@ -180,7 +184,7 @@ export default function AuditEvents() {
   const statusTag = (status: string) => status === 'submitted' ? <Tag color="blue">已提交 Rekor</Tag> : status === 'local_only' ? <Tag color="gold">仅本地存证</Tag> : <Tag color="blue">{status}</Tag>
 
   return <Card title={<Space><SafetyCertificateOutlined />审计存证</Space>} extra={<Button icon={<ReloadOutlined />} onClick={refreshAll}>刷新</Button>}>
-    <Card size="small" style={{ marginBottom: 14, background: '#fafafa' }}>
+    <Card size="small" style={{ marginBottom: 14, background: 'var(--canvas)' }}>
       <Space wrap size={[10, 10]}>
         <Input value={contractInput} onChange={(event) => setContractInput(event.target.value)} onPressEnter={applySearch} allowClear placeholder="按合约号查找存证链" style={{ width: 250 }} />
         <Input value={projectInput} onChange={(event) => setProjectInput(event.target.value)} onPressEnter={applySearch} allowClear placeholder="按项目号查找所属存证链" style={{ width: 250 }} />
@@ -193,11 +197,13 @@ export default function AuditEvents() {
       {[...EVENT_VISUALS, OTHER_VISUAL, REVIEW_WARNING].map((item) => <span key={item.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, color: item.text, background: item.soft, border: `1px solid ${item.color}55`, fontSize: 12 }}><i style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />{item.label}</span>)}
       {focusedStream && <Tag color="blue">合约链{streamLabel}</Tag>}
     </Space>
-    <div style={{ height: 390, border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 18, background: '#fafcff' }}>
+    {list.isError && <Alert type="error" message="审计事件加载失败，请重试"/>}
+    <Collapse style={{marginBottom:24}} items={[{key:'network',label:'存证关系图 · 按需展开',children:<>    <div style={{ height: 390, border: '1px solid var(--line)', borderRadius: 8, marginBottom: 18, background: 'var(--surface)' }}>
       <SigmaContainer style={{ height: '100%', width: '100%' }} settings={{ renderEdgeLabels: false, labelDensity: 0, labelRenderedSizeThreshold: 1000, defaultDrawNodeHover: drawAuditNodeHover, defaultEdgeType: 'line', zIndex: true }}>
         <AuditNetwork events={events} selectedId={selected?.event_id} focusedStream={focusedStream ?? undefined} highlightFailures={highlightFailures} onSelect={selectEvent} onClearFocus={clearFocus} />
       </SigmaContainer>
     </div>
+</>}]} />
     <Table rowKey="event_id" loading={list.isLoading} dataSource={focusedStream ? focusedEvents : events} rowClassName={(record) => record.event_id === selected?.event_id ? 'ant-table-row-selected' : ''} onRow={(record) => ({ onClick: () => selectRow(record), style: { cursor: 'pointer' } })} columns={[
       { title: '事件类型', dataIndex: 'event_type', render: (value) => <EventTag eventType={value} /> },
       { title: '合约号', render: (_, record) => <Text code copyable>{record.contract_id ?? record.stream_id.replace(/^contract:/, '')}</Text> },
@@ -207,6 +213,6 @@ export default function AuditEvents() {
       { title: '发生时间', dataIndex: 'occurred_at', render: (value) => new Date(value).toLocaleString() },
       { title: 'Rekor 状态', render: (_, record) => <Button type="link" onClick={(event) => { event.stopPropagation(); selectRow(record) }}>查看存证状态</Button> },
     ]} pagination={{ pageSize: 10 }} />
-    <Drawer title={`审计存证详情：${selected?.event_type ?? ''}`} width={760} open={!!selected} onClose={closeEvidence} loading={evidence.isLoading}>{evidence.data && <Space direction="vertical" style={{ width: '100%' }} size={16}>{statusTag(evidence.data.status)}<Descriptions bordered size="small" column={1}><Descriptions.Item label="审计流">{selected?.stream_id}</Descriptions.Item><Descriptions.Item label="事件 ID"><Text copyable code>{selected?.event_id}</Text></Descriptions.Item><Descriptions.Item label="本地当前哈希"><Text copyable code>{evidence.data.current_hash}</Text></Descriptions.Item><Descriptions.Item label="前序哈希"><Text copyable code>{evidence.data.previous_hash || '（链首）'}</Text></Descriptions.Item><Descriptions.Item label="Rekor UUID">{evidence.data.anchor?.rekor_uuid ? <Text copyable code>{evidence.data.anchor.rekor_uuid}</Text> : '—'}</Descriptions.Item><Descriptions.Item label="LogIndex">{evidence.data.anchor?.log_index ?? '—'}</Descriptions.Item><Descriptions.Item label="Integrated Time">{evidence.data.anchor?.integrated_time ? new Date(evidence.data.anchor.integrated_time * 1000).toLocaleString() : '—'}</Descriptions.Item></Descriptions><div><Text strong>审计事件原件</Text><div style={{ marginTop: 8 }}><JsonViewer value={evidence.data.event} /></div></div>{evidence.data.anchor?.inclusion_proof && <div><Text strong>Rekor Inclusion Proof / Checkpoint</Text><div style={{ marginTop: 8 }}><JsonViewer value={evidence.data.anchor.inclusion_proof} /></div></div>}{evidence.data.anchor?.checkpoint?.signed_entry_timestamp && <div><Text strong>Signed Entry Timestamp</Text><Text code copyable style={{ display: 'block', marginTop: 8, wordBreak: 'break-all' }}>{evidence.data.anchor.checkpoint.signed_entry_timestamp}</Text></div>}</Space>}</Drawer>
+    <Drawer title={`审计存证详情：${selected?.event_type ?? ''}`} width={1040} open={!!selected} onClose={closeEvidence} loading={evidence.isLoading}>{evidence.isError&&<Alert type="error" message="存证详情加载失败" action={<Button onClick={()=>evidence.refetch()}>重试</Button>}/>}<Space wrap style={{marginBottom:16}}>{selected?.contract_id&&<Link to={'/contracts/'+encodeURIComponent(selected.contract_id)}>关联合约</Link>}{selected?.project_id&&<Link to={'/privacy-computing/'+selected.project_id}>关联项目</Link>}</Space>{evidence.data && <Space direction="vertical" style={{ width: '100%' }} size={16}>{statusTag(evidence.data.status)}<BusinessDetails bordered size="small" column={1}><Descriptions.Item label="审计流">{selected?.stream_id}</Descriptions.Item><Descriptions.Item label="事件 ID"><Text copyable code>{selected?.event_id}</Text></Descriptions.Item><Descriptions.Item label="本地当前哈希"><Text copyable code>{evidence.data.current_hash}</Text></Descriptions.Item><Descriptions.Item label="前序哈希"><Text copyable code>{evidence.data.previous_hash || '（链首）'}</Text></Descriptions.Item><Descriptions.Item label="Rekor UUID">{evidence.data.anchor?.rekor_uuid ? <Text copyable code>{evidence.data.anchor.rekor_uuid}</Text> : '—'}</Descriptions.Item><Descriptions.Item label="LogIndex">{evidence.data.anchor?.log_index ?? '—'}</Descriptions.Item><Descriptions.Item label="Integrated Time">{evidence.data.anchor?.integrated_time ? new Date(evidence.data.anchor.integrated_time * 1000).toLocaleString() : '—'}</Descriptions.Item></BusinessDetails><Collapse items={[{key:"original",label:"审计事件原件",children:<JsonViewer value={evidence.data.event}/>}]} />{evidence.data.anchor?.inclusion_proof && <div><Text strong>Rekor Inclusion Proof / Checkpoint</Text><div style={{ marginTop: 8 }}><JsonViewer value={evidence.data.anchor.inclusion_proof} /></div></div>}{evidence.data.anchor?.checkpoint?.signed_entry_timestamp && <div><Text strong>Signed Entry Timestamp</Text><Text code copyable style={{ display: 'block', marginTop: 8, wordBreak: 'break-all' }}>{evidence.data.anchor.checkpoint.signed_entry_timestamp}</Text></div>}</Space>}</Drawer>
   </Card>
 }

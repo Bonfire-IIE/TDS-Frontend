@@ -12,7 +12,7 @@ export interface UsageRecord {
   job_id: string | null
   reason: string | null
   matched_policy_ids: string[] | null
-  context: { used_count?: number; exec_env?: string; app_image?: string } | null
+  context: { used_count?: number; exec_env?: string; application_code?: string } | null
   created_at: string
   updated_at: string
 }
@@ -35,9 +35,9 @@ export async function listUsageRecords(contractId?: string) {
   return data.data
 }
 
-export async function preflightUsage(contractId: string, appImage: string) {
+export async function preflightUsage(contractId: string, applicationCode: string) {
   const { data } = await api.get<ApiResp<UsagePreflight>>('/usage/preflight', {
-    params: { contract_id: contractId, app_image: appImage, action: 'process' },
+    params: { contract_id: contractId, application_code: applicationCode, action: 'process' },
   })
   return data.data
 }

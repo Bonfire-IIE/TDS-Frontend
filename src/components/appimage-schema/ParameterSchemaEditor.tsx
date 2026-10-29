@@ -66,7 +66,7 @@ function fromRows(rows: ParameterRow[]): ParameterSchemaValue {
 export function ParameterSchemaEditor({ value, onChange, disabled }: ParameterSchemaEditorProps) {
   const [form] = Form.useForm<{ parameters: ParameterRow[] }>()
   useEffect(() => {
-    form.setFieldsValue({ parameters: toRows((value?.parameterSchema as ParameterSchema) ?? emptySchema, value?.uiSchema ?? {}) })
+    form.setFieldValue('parameters', toRows((value?.parameterSchema as ParameterSchema) ?? emptySchema, value?.uiSchema ?? {}))
   }, [form, value])
 
   return (
